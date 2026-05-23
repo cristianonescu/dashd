@@ -71,6 +71,31 @@ static int next_enabled_slot(int from) {
   return 0;
 }
 
+// How many of the 8 slots are enabled — used as the footer denominator.
+// Defaults to PAGE_COUNT when nothing is disabled (mask == 0 means "all").
+static int enabled_page_count() {
+  if (g_store.pages_enabled_mask == 0) return PAGE_COUNT;
+  int n = 0;
+  for (int i = 0; i < PAGE_COUNT; i++) {
+    if (page_enabled(page_id_at_slot(i))) n++;
+  }
+  return n;
+}
+
+// Position of `slot` among only the enabled slots (0-based) — used as the
+// footer numerator. Walks the order list counting enabled slots up to
+// and including `slot`. If `slot` itself is disabled we still return
+// something sensible (the count of enabled slots before it), but in
+// practice s_slot_idx is always on an enabled slot because every code
+// path that mutates it routes through next_enabled_slot / find_home_slot.
+static int enabled_ordinal_for_slot(int slot) {
+  int ord = 0;
+  for (int i = 0; i < PAGE_COUNT && i < slot; i++) {
+    if (page_enabled(page_id_at_slot(i))) ord++;
+  }
+  return ord;
+}
+
 // Fill `s_aa_bag` with the slot indices of every enabled page, in
 // Fisher-Yates shuffled order. Called when the bag empties or when
 // settings change. Excludes `avoid_slot` from the FIRST position so
@@ -149,7 +174,11 @@ static void draw_all(bool full) {
   }
 
   p.render(tft, full);
-  draw_footer(tft, s_slot_idx, PAGE_COUNT, g_store.last_state_ms);
+  // Footer shows "ordinal/enabled-count" — e.g. "3/5" when 3 of 5
+  // enabled pages is currently visible. The raw slot index / PAGE_COUNT
+  // would give wrong numbers any time the user has disabled a page.
+  draw_footer(tft, enabled_ordinal_for_slot(s_slot_idx),
+              enabled_page_count(), g_store.last_state_ms);
   pet_tick(tft);   // overlay last so it sits on top of every page
 
 #ifdef DASHD_ENABLE_BLE
@@ -335,11 +364,19 @@ void loop() {
 
   uint32_t now = millis();
   // While a transition is running, drive it on a tight 16 ms loop so the
-  // pet's wipe looks smooth. Skip the normal page redraw.
+  // pet's wipe looks smooth. Skip the normal page redraw. When the
+  // transition completes (`done == true`), schedule a full redraw on
+  // the next tick — the transition itself only paints the wipe + clears
+  // the content band; draw_all() then handles the actual new-page
+  // render with correct slot→id resolution and enabled-count footer.
   if (transition_active()) {
-    transition_tick(tft);
+    bool done = transition_tick(tft);
     s_last_redraw_ms = now;
-    return;
+    if (done) {
+      s_force_full_redraw = true;
+    } else {
+      return;
+    }
   }
   if (s_force_full_redraw || changed || (now - s_last_redraw_ms) >= DISPLAY_REDRAW_MS) {
     draw_all(s_force_full_redraw);

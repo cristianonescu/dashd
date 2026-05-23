@@ -106,13 +106,14 @@ static bool tick_horizontal_wipe(LGFX &tft, bool forward) {
   pet_render_now(tft);
 
   if (elapsed >= DURATION_WIPE_MS) {
-    // Final: full-screen new page draw, then return pet to its corner.
+    // Done. Clear the content band and hand off to the main loop's
+    // draw_all() for the actual page redraw — that path correctly
+    // resolves slot→page-id via page_id_at_slot() and computes the
+    // footer ordinal among enabled pages. Re-implementing draw_all
+    // here historically caused slot/id desync (kPages indexed by slot
+    // when the user had reordered pages) and a wrong footer "X/Y"
+    // denominator (raw PAGE_COUNT instead of enabled count).
     tft.fillRect(0, top, screen_w, content_h, THEME_BG);
-    const PageEntry &p = kPages[s_to_slot];
-    draw_title_bar(tft, p.name, g_store.ever_received,
-                   !g_store.host_alive(now, /*stale*/ 10000));
-    p.render(tft, true);
-    draw_footer(tft, s_to_slot, PAGE_COUNT, g_store.last_state_ms);
     pet_end_transition();
     s_active = false;
     return true;
@@ -157,12 +158,9 @@ static bool tick_home_zoom(LGFX &tft) {
   pet_render_now(tft);
 
   if (elapsed >= DURATION_ZOOM_MS) {
+    // Done. Main loop's draw_all() handles the redraw (see wipe-path
+    // comment above for the slot/id rationale).
     tft.fillRect(0, top, W, content_h, THEME_BG);
-    const PageEntry &p = kPages[s_to_slot];
-    draw_title_bar(tft, p.name, g_store.ever_received,
-                   !g_store.host_alive(now, 10000));
-    p.render(tft, true);
-    draw_footer(tft, s_to_slot, PAGE_COUNT, g_store.last_state_ms);
     pet_end_transition();
     s_active = false;
     return true;

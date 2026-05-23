@@ -1,7 +1,7 @@
 {
   "name": "dashd-ui",
   "productName": "dashd",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "dashd — desk widget control panel",
   "author": {
     "name": "softwarechef",

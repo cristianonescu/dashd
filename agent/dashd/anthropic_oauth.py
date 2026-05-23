@@ -491,7 +491,7 @@ class AnthropicOAuthClient:
             from importlib.metadata import version
             return version("dashd")
         except Exception:
-            return "0.1.10"
+            return "0.1.11"
 
 
 # ── Internal exception types (caught + classified above) ───────────────

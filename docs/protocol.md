@@ -85,7 +85,7 @@ Any field may be `null`. The firmware tolerates missing fields and renders `--` 
 
 **Codex tokens:** dashd derives per-session tokens by diffing successive cumulative `total_token_usage` values from `token_count` events (the trick borrowed from ccusage). State persists in `~/.config/dashd/codex_state.json`. Codex's own `rate_limits.primary.used_percent` is the actual quota usage — exposed as `block_used_pct` and `block_pct`; there's no time-elapsed metric for Codex. Cost stays `null` because Anthropic / OpenAI don't publish Codex pricing publicly.
 
-### Anthropic OAuth gauges (v0.1.10+, opt-in)
+### Anthropic OAuth gauges (v0.1.11+, opt-in)
 
 When the user enables the Anthropic OAuth API in **Settings → Privacy**, dashd polls `GET https://api.anthropic.com/api/oauth/usage` every 60 s and surfaces the response in a new top-level `anthropic` block:
 
@@ -117,11 +117,11 @@ When the user hasn't opted in, or the token is missing / expired / unreachable, 
 ### Device → Host (events)
 
 ```json
-{"type": "event", "name": "boot", "fw_version": "0.1.10", "v": 1}
-{"type": "event", "name": "hello_ack", "fw_version": "0.1.10", "v": 1}
+{"type": "event", "name": "boot", "fw_version": "0.1.11", "v": 1}
+{"type": "event", "name": "hello_ack", "fw_version": "0.1.11", "v": 1}
 {"type": "event", "name": "page_changed", "page": "AI Spend"}
 {"type": "event", "name": "button_long_press"}
-{"type": "event", "name": "log", "level": "info", "msg": "dashd fw 0.1.10 up, 8 pages, w=240 h=320"}
+{"type": "event", "name": "log", "level": "info", "msg": "dashd fw 0.1.11 up, 8 pages, w=240 h=320"}
 ```
 
 ## Handshake
@@ -191,7 +191,7 @@ All `cmd` messages travel over whichever transport currently owns the session �
 {"type": "cmd", "name": "show_page", "page": "AI Spend"}
 {"type": "cmd", "name": "set_brightness", "value": 80}       // 0..100 %
 
-// Auto-advance: device cycles through enabled pages on a timer (v0.1.10+).
+// Auto-advance: device cycles through enabled pages on a timer (v0.1.11+).
 // Default ON with 8 s sequential. All fields optional — omitted fields
 // keep their current value. Persisted to NVS so the cycle continues
 // across reboots, including when the host is offline.
@@ -273,10 +273,10 @@ The firmware can be updated over either transport. The agent downloads the match
 {"type": "cmd", "name": "fw_update_begin",
  "size": 1015200,
  "sha256": "8d3f…2a7b",            // 64 lowercase hex chars
- "version": "0.1.10"}
+ "version": "0.1.11"}
 
 // Device → Host:
-{"type":"event","name":"fw_update_started","ok":true,"version":"0.1.10"}
+{"type":"event","name":"fw_update_started","ok":true,"version":"0.1.11"}
 //   on failure: {"…","ok":false,"error":"bad sha256 (expected 64 hex chars)"}
 
 // Stream chunks. The agent uses WINDOW=1 for firmware OTA (strictly
