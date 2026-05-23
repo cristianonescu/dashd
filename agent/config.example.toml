@@ -21,6 +21,16 @@ timezone = "Europe/Bucharest"
 [collectors.system]
 enabled = true
 
+# Cross-platform GPU stats (v0.1.12+). Apple Silicon / Intel Mac via
+# `ioreg -r -c IOAccelerator` (IOAccelerator's PerformanceStatistics —
+# no sudo needed), NVIDIA via nvidia-smi when present, Linux AMD via
+# `/sys/class/drm/card*/device/gpu_busy_percent`. On systems with no
+# detectable GPU the collector emits `{available: false, reason: "..."}`
+# and the GPU page renders "GPU stats not available". Safe to leave
+# on; disable to skip the per-tick subprocess cost.
+[collectors.gpu]
+enabled = true
+
 [collectors.claude_code]
 enabled = true
 # Per-block token budget. When set, the agent exposes `block_used_pct`

@@ -5,16 +5,26 @@ import ElementsPane from "./ElementsPane";
 import ConnectionPane from "./ConnectionPane";
 import UpdatesPane from "./UpdatesPane";
 
-/** Canonical page list; index here matches firmware PageId. */
+/**
+ * Canonical page list — indices MUST stay aligned with the firmware
+ * PageId enum (firmware/include/pages.h). Id 1 (System) is deprecated
+ * in v0.1.12+ and intentionally absent from this list: the firmware
+ * masks it out via PAGES_DEPRECATED_MASK, so the Settings UI shouldn't
+ * surface it either. The 4 new resource pages (CPU, Memory, GPU,
+ * Network) take ids 8-11.
+ */
 const ALL_PAGES = [
-  { id: 0, name: "Home"     },
-  { id: 1, name: "System"   },
-  { id: 2, name: "AI Spend" },
-  { id: 3, name: "Dev Flow" },
-  { id: 4, name: "GitHub"   },
-  { id: 5, name: "Calendar" },
-  { id: 6, name: "Messages" },
-  { id: 7, name: "Tips"     },
+  { id: 0,  name: "Home"     },
+  { id: 2,  name: "AI Spend" },
+  { id: 3,  name: "Dev Flow" },
+  { id: 4,  name: "GitHub"   },
+  { id: 5,  name: "Calendar" },
+  { id: 6,  name: "Messages" },
+  { id: 7,  name: "Tips"     },
+  { id: 8,  name: "CPU"      },
+  { id: 9,  name: "Memory"   },
+  { id: 10, name: "GPU"      },
+  { id: 11, name: "Network"  },
 ] as const;
 
 const SETTINGS_TAB_HINTS: Record<string, string> = {
@@ -567,7 +577,12 @@ function PagesPane() {
   const applyEnabled = () => {
     let mask = 0;
     enabled.forEach((on, i) => { if (on) mask |= (1 << order[i]); });
-    if (mask === (1 << ALL_PAGES.length) - 1) mask = 0; // all → 0
+    // "All enabled" sentinel: the firmware treats mask == 0 as
+    // "every page enabled". Compute the all-on bitmask from the actual
+    // ids in ALL_PAGES (which is sparse — id 1 / PAGE_SYSTEM is
+    // deprecated, so `(1 << length) - 1` would be wrong).
+    const allOnMask = ALL_PAGES.reduce((m, p) => m | (1 << p.id), 0);
+    if (mask === allOnMask) mask = 0;
     window.dashd.sendCmd({ name: "set_pages_enabled", mask });
     setMsg("Enabled mask applied"); setTimeout(() => setMsg(""), 1800);
   };

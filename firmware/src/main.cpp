@@ -16,6 +16,10 @@
 
 const PageEntry kPages[PAGE_COUNT] = {
   {PAGE_HOME,     "Home",     render_home},
+  // PAGE_SYSTEM is reserved/deprecated (v0.1.11 and earlier). Kept in
+  // the table so the existing id mapping doesn't shift — every
+  // page-walk path masks PAGES_DEPRECATED_MASK to skip it. render_system
+  // is a no-op stub for back-compat.
   {PAGE_SYSTEM,   "System",   render_system},
   {PAGE_AI_SPEND, "AI Spend", render_ai_spend},
   {PAGE_DEV_FLOW, "Dev Flow", render_dev_flow},
@@ -23,6 +27,10 @@ const PageEntry kPages[PAGE_COUNT] = {
   {PAGE_CALENDAR, "Calendar", render_calendar},
   {PAGE_MESSAGES, "Messages", render_messages},
   {PAGE_TIPS,     "Tips",     render_tips},
+  {PAGE_CPU,      "CPU",      render_cpu},
+  {PAGE_MEMORY,   "Memory",   render_memory},
+  {PAGE_GPU,      "GPU",      render_gpu},
+  {PAGE_NETWORK,  "Network",  render_network},
 };
 
 static LGFX tft;
@@ -58,6 +66,10 @@ static int page_id_at_slot(int slot) {
 }
 
 static inline bool page_enabled(int page_id) {
+  // Deprecated ids (currently PAGE_SYSTEM) are never visible, regardless
+  // of mask. v0.1.11-and-earlier devices that have persisted `pmask`
+  // with bit 1 set would otherwise resurrect a stub page on this build.
+  if ((PAGES_DEPRECATED_MASK & (1u << page_id)) != 0) return false;
   if (g_store.pages_enabled_mask == 0) return true;
   return (g_store.pages_enabled_mask & (1u << page_id)) != 0;
 }
@@ -71,10 +83,11 @@ static int next_enabled_slot(int from) {
   return 0;
 }
 
-// How many of the 8 slots are enabled — used as the footer denominator.
-// Defaults to PAGE_COUNT when nothing is disabled (mask == 0 means "all").
+// How many slots are visible — footer denominator. Walks every slot
+// and lets page_enabled() decide (so the deprecated PAGE_SYSTEM is
+// always counted out, even on a fresh device where pages_enabled_mask
+// is 0 / "all enabled").
 static int enabled_page_count() {
-  if (g_store.pages_enabled_mask == 0) return PAGE_COUNT;
   int n = 0;
   for (int i = 0; i < PAGE_COUNT; i++) {
     if (page_enabled(page_id_at_slot(i))) n++;

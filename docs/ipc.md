@@ -21,7 +21,7 @@ This is **not a security boundary** — anyone with read access to your home dir
 {"type": "cmd", "name": "show_page", "page": "AI Spend"}
 {"type": "cmd", "name": "set_brightness", "value": 80}
 
-// Auto-advance page cycling (v0.1.11+). Default ON with 8 s sequential.
+// Auto-advance page cycling (v0.1.12+). Default ON with 8 s sequential.
 // All fields optional — omitted fields keep the device's current value.
 // Persisted in device NVS so cycling continues even with the host offline.
 {"type": "cmd", "name": "set_auto_advance",
@@ -76,7 +76,7 @@ This is **not a security boundary** — anyone with read access to your home dir
 // release's tag and replies via `fw_update_state` events.
 {"type": "cmd", "name": "fw_check_update"}
 //   → {"type":"event","name":"fw_update_state",
-//      "state":"up_to_date","current":"0.1.11","latest":"0.1.11"}
+//      "state":"up_to_date","current":"0.1.12","latest":"0.1.12"}
 //   or {"…","state":"available","current":"…","latest":"…",
 //       "notes":"<markdown>", "size_ble":1015200, "size_usb":760000}
 //   or {"…","state":"error","error":"could not reach GitHub Releases"}
@@ -89,13 +89,13 @@ This is **not a security boundary** — anyone with read access to your home dir
 {"type": "cmd", "name": "fw_update_start"}
 // Progress events the UI hooks for the progress bar:
 //   {"type":"event","name":"fw_update_state",
-//    "state":"downloading","version":"0.1.11","bytes":N,"total":M}
+//    "state":"downloading","version":"0.1.12","bytes":N,"total":M}
 //   {"type":"event","name":"fw_update_state",
-//    "state":"flashing","version":"0.1.11","bytes":N,"total":M}
+//    "state":"flashing","version":"0.1.12","bytes":N,"total":M}
 //   {"type":"event","name":"fw_update_state",
-//    "state":"rebooting","version":"0.1.11"}
+//    "state":"rebooting","version":"0.1.12"}
 //   {"type":"event","name":"fw_update_state",
-//    "state":"done","version":"0.1.11"}
+//    "state":"done","version":"0.1.12"}
 
 // Cancel a flight in progress.
 {"type": "cmd", "name": "fw_update_abort"}

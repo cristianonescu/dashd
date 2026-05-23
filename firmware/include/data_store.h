@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "pages.h"   // for PAGES_ORDER_LEN
 
 // Most-recent parsed state from the host. Pages read fields they care about
 // and treat sentinel values as "n/a" — never crash on absence.
@@ -35,8 +36,14 @@ struct DataStore {
   uint32_t pages_enabled_mask = 0;
 
   // Display order — pages_order[slot] = page id at that slot. -1 = default
-  // (use the canonical order in kPages).
-  int8_t pages_order[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+  // (use the canonical order in kPages). Length defined in pages.h
+  // (`PAGES_ORDER_LEN`, currently 16) and persisted as a fixed-size
+  // blob in NVS — older firmware wrote 8-byte blobs; restore detects
+  // size mismatch and falls back to defaults.
+  int8_t pages_order[PAGES_ORDER_LEN] = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+  };
 
   // Text scale multipliers per semantic role. -1 = default (1). Clamped 1..4
   // when applied so a runaway value can't overflow the screen.
@@ -72,13 +79,52 @@ struct DataStore {
   // system.*
   int  cpu_pct[8]  = {0};
   int  cpu_count   = 0;
+  // CPU detail — populated by v0.1.12+ agents. Sentinels mean "n/a".
+  int  cpu_freq_mhz     = -1;     // current CPU frequency (psutil.cpu_freq)
+  int  cpu_freq_max_mhz = -1;     // platform max frequency
+  float load_1m  = NAN;
+  float load_5m  = NAN;
+  float load_15m = NAN;
   int  ram_pct     = -1;
   int  ram_pressure_pct = -1;   // active+wired only; cache excluded
   float ram_used_gb  = -1.0f;
   float ram_total_gb = -1.0f;
+  // Memory detail (v0.1.12+).
+  int   ram_swap_pct       = -1;
+  float ram_swap_used_gb   = -1.0f;
+  float ram_swap_total_gb  = -1.0f;
+  float ram_cached_gb      = -1.0f;
+  float ram_active_gb      = -1.0f;
+  float ram_inactive_gb    = -1.0f;
   int  disk_pct    = -1;
+  // Aggregate network — kept for legacy + Home page summaries.
   int  net_up_kbps   = -1;
   int  net_down_kbps = -1;
+  // Per-interface network (v0.1.12+). Top-3 by combined traffic.
+  static constexpr int IFACE_N = 3;
+  static constexpr int IFACE_NAME_LEN = 12;
+  struct IfaceStat {
+    char name[IFACE_NAME_LEN] = {0};
+    int  up_kbps      = -1;
+    int  down_kbps    = -1;
+    long up_total_mb  = -1;
+    long down_total_mb = -1;
+    bool is_up        = false;
+    bool is_active    = false;   // primary outbound interface
+  };
+  IfaceStat ifaces[IFACE_N];
+  int  iface_count = 0;
+  // GPU (v0.1.12+). `gpu_available=false` ⇒ render "GPU stats not available"
+  // and ignore the rest.
+  bool  gpu_available     = false;
+  char  gpu_name[24]      = {0};
+  char  gpu_vendor[12]    = {0};
+  int   gpu_util_pct      = -1;
+  int   gpu_vram_used_mb  = -1;
+  int   gpu_vram_total_mb = -1;   // -1 on unified-memory devices (Apple Silicon)
+  int   gpu_temp_c        = -1;
+  int   gpu_power_w       = -1;
+  int   gpu_count         = 0;    // total devices detected (we render the first)
   int  battery_pct = -1;
   int  battery_charging = -1;     // -1 unknown, 0 false, 1 true
   float temp_cpu_c = NAN;

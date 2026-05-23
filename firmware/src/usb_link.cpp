@@ -135,6 +135,15 @@ void usb_link_restore_prefs() {
   g_store.thr_calendar_soon_min = s_prefs.getInt("thr_calm", -1);
   g_store.thr_commit_fresh_min  = s_prefs.getInt("thr_cmtm", -1);
   g_store.pages_enabled_mask = s_prefs.getUInt("pmask", 0);
+  // Migration: v0.1.11 and earlier stored bit 1 (PAGE_SYSTEM) which is
+  // now a deprecated id. If we restored a non-zero mask with bit 1 set,
+  // strip it so the resurrected stub page can never be enabled. We do
+  // NOT rewrite NVS here — the mask is masked again by page_enabled()
+  // at every check, and a later set_pages_enabled persists the clean
+  // value.
+  if (g_store.pages_enabled_mask != 0) {
+    g_store.pages_enabled_mask &= ~PAGES_DEPRECATED_MASK;
+  }
   g_store.backlight = s_prefs.getInt("bl", -1);
   g_store.show_title  = s_prefs.getChar("ly_st", -1);
   g_store.show_footer = s_prefs.getChar("ly_sf", -1);
@@ -143,8 +152,23 @@ void usb_link_restore_prefs() {
   g_store.scale_label = s_prefs.getChar("sc_l", -1);
   g_store.scale_value = s_prefs.getChar("sc_v", -1);
   g_store.scale_big   = s_prefs.getChar("sc_b", -1);
+  // pages_order persisted blob must match the current array size — if
+  // an older firmware wrote an 8-byte blob and we now expect 16 bytes,
+  // fall back to defaults (which is correct: a v0.1.11 ordering with
+  // PAGE_SYSTEM at slot 1 wouldn't make sense alongside the new
+  // PAGE_CPU/MEMORY/GPU/NETWORK pages anyway).
   if (s_prefs.getBytesLength("porder") == sizeof(g_store.pages_order)) {
     s_prefs.getBytes("porder", g_store.pages_order, sizeof(g_store.pages_order));
+    // Belt and braces: scrub any deprecated id that survived in the
+    // restored order. They'd be silently skipped at render time but a
+    // resurrected slot eats a position in the user's cycle.
+    for (int i = 0; i < PAGES_ORDER_LEN; i++) {
+      int id = g_store.pages_order[i];
+      if (id >= 0 && id < PAGE_COUNT &&
+          (PAGES_DEPRECATED_MASK & (1u << id)) != 0) {
+        g_store.pages_order[i] = -1;
+      }
+    }
   }
   // Auto-advance settings. Defaults match the struct defaults (enabled,
   // 8 s, sequential) so upgrading users opt into cycling automatically.
@@ -221,9 +245,40 @@ static void apply_system(JsonObjectConst sys) {
   g_store.ram_pressure_pct = sys["ram_pressure_pct"] | -1;
   g_store.ram_used_gb      = sys["ram_used_gb"]      | -1.0f;
   g_store.ram_total_gb = sys["ram_total_gb"] | -1.0f;
+  // Memory detail (v0.1.12+) — all optional, fall back to sentinels.
+  g_store.ram_swap_pct      = sys["ram_swap_pct"]      | -1;
+  g_store.ram_swap_used_gb  = sys["ram_swap_used_gb"]  | -1.0f;
+  g_store.ram_swap_total_gb = sys["ram_swap_total_gb"] | -1.0f;
+  g_store.ram_cached_gb     = sys["ram_cached_gb"]     | -1.0f;
+  g_store.ram_active_gb     = sys["ram_active_gb"]     | -1.0f;
+  g_store.ram_inactive_gb   = sys["ram_inactive_gb"]   | -1.0f;
+  // CPU detail (v0.1.12+).
+  g_store.cpu_freq_mhz     = sys["cpu_freq_mhz"]     | -1;
+  g_store.cpu_freq_max_mhz = sys["cpu_freq_max_mhz"] | -1;
+  g_store.load_1m  = sys["load_1m"]  | (float)NAN;
+  g_store.load_5m  = sys["load_5m"]  | (float)NAN;
+  g_store.load_15m = sys["load_15m"] | (float)NAN;
   g_store.disk_pct    = sys["disk_pct"]     | -1;
   g_store.net_up_kbps   = sys["net_up_kbps"]   | -1;
   g_store.net_down_kbps = sys["net_down_kbps"] | -1;
+  // Per-interface network (v0.1.12+).
+  JsonArrayConst ifaces = sys["ifaces"].as<JsonArrayConst>();
+  g_store.iface_count = 0;
+  if (!ifaces.isNull()) {
+    for (JsonVariantConst v : ifaces) {
+      if (g_store.iface_count >= DataStore::IFACE_N) break;
+      JsonObjectConst o = v.as<JsonObjectConst>();
+      DataStore::IfaceStat &slot = g_store.ifaces[g_store.iface_count];
+      strlcpy(slot.name, o["name"] | "?", DataStore::IFACE_NAME_LEN);
+      slot.up_kbps       = o["up_kbps"]       | -1;
+      slot.down_kbps     = o["down_kbps"]     | -1;
+      slot.up_total_mb   = o["up_total_mb"]   | -1L;
+      slot.down_total_mb = o["down_total_mb"] | -1L;
+      slot.is_up        = o["is_up"]    | false;
+      slot.is_active    = o["is_active"]| false;
+      g_store.iface_count++;
+    }
+  }
   g_store.battery_pct = sys["battery_pct"]  | -1;
 
   JsonVariantConst bc = sys["battery_charging"];
@@ -258,6 +313,40 @@ static void apply_claude_code(JsonObjectConst cc) {
   g_store.cc_burn_projected_cap_min = cc["burn_projected_cap_min"] | -1;
   g_store.cc_tokens_this_week       = cc["tokens_this_week"]       | -1L;
   g_store.cc_cost_this_week_usd     = cc["cost_this_week_usd"]     | (float)NAN;
+}
+
+// Top-level `gpu` block (v0.1.12+). When the collector decided GPU info
+// isn't available — no GPU, no driver, opt-out — it emits
+// `{"available": false, "reason": "..."}` and the page renders a
+// friendly fallback. Otherwise every field below is optional; missing
+// fields fall back to sentinels and the page just hides those rows.
+static void apply_gpu(JsonObjectConst gpu) {
+  // Default to "not available" so a partial / malformed block degrades
+  // gracefully — the GPU page will show its "stats not available"
+  // message rather than half-populated data.
+  bool avail = gpu["available"] | false;
+  g_store.gpu_available = avail;
+  if (!avail) {
+    g_store.gpu_name[0] = 0;
+    g_store.gpu_vendor[0] = 0;
+    g_store.gpu_util_pct = -1;
+    g_store.gpu_vram_used_mb = -1;
+    g_store.gpu_vram_total_mb = -1;
+    g_store.gpu_temp_c = -1;
+    g_store.gpu_power_w = -1;
+    g_store.gpu_count = 0;
+    return;
+  }
+  const char *nm = gpu["name"] | "";
+  strlcpy(g_store.gpu_name, nm, sizeof(g_store.gpu_name));
+  const char *vd = gpu["vendor"] | "";
+  strlcpy(g_store.gpu_vendor, vd, sizeof(g_store.gpu_vendor));
+  g_store.gpu_util_pct      = gpu["util_pct"]      | -1;
+  g_store.gpu_vram_used_mb  = gpu["vram_used_mb"]  | -1;
+  g_store.gpu_vram_total_mb = gpu["vram_total_mb"] | -1;
+  g_store.gpu_temp_c        = gpu["temp_c"]        | -1;
+  g_store.gpu_power_w       = gpu["power_w"]       | -1;
+  g_store.gpu_count         = gpu["count"]         | 1;
 }
 
 static void apply_codex(JsonObjectConst cx) {
@@ -389,11 +478,15 @@ static void apply_cmd(JsonObjectConst c) {
     JsonArrayConst arr = c["order"].as<JsonArrayConst>();
     if (!arr.isNull()) {
       int n = 0;
-      int8_t buf[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
+      int8_t buf[PAGES_ORDER_LEN];
+      for (int i = 0; i < PAGES_ORDER_LEN; i++) buf[i] = -1;
       for (JsonVariantConst v : arr) {
-        if (n >= 8) break;
+        if (n >= PAGES_ORDER_LEN) break;
         int id = v.as<int>();
         if (id < 0 || id >= PAGE_COUNT) continue;
+        // Silently drop deprecated ids — they can never be in the
+        // user's order regardless of what the host sends.
+        if ((PAGES_DEPRECATED_MASK & (1u << id)) != 0) continue;
         buf[n++] = (int8_t)id;
       }
       // Empty array (or all-invalid) = reset to default order.
@@ -601,6 +694,13 @@ static void apply_line(const char *line, size_t len, TransportId src) {
   JsonVariantConst sys = doc["system"];
   if (!sys.isNull() && sys.is<JsonObjectConst>()) {
     apply_system(sys.as<JsonObjectConst>());
+  }
+  // Top-level `gpu` block (v0.1.12+). Absent ⇒ leave g_store.gpu_*
+  // alone (the prior tick's values stay valid; GPU page falls back to
+  // "not available" if no tick has ever populated it).
+  JsonVariantConst gpu = doc["gpu"];
+  if (!gpu.isNull() && gpu.is<JsonObjectConst>()) {
+    apply_gpu(gpu.as<JsonObjectConst>());
   }
   JsonVariantConst ai = doc["ai"];
   if (!ai.isNull() && ai.is<JsonObjectConst>()) {

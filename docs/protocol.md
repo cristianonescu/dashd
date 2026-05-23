@@ -19,15 +19,46 @@ The full protocol catalog (with all collector fields) is in section 5 of the pro
   "source": {"host": "mbp-cristian", "os": "Darwin", "id": "a1b2c3d4e5f6"},
   "system": {
     "cpu_pct": [20, 30, 11, 18],
-    "ram_pct": 42,
+    "cpu_freq_mhz": 3200,           // current clock (v0.1.12+)
+    "cpu_freq_max_mhz": 4500,       // platform max (v0.1.12+)
+    "load_1m": 2.41,                // (v0.1.12+)
+    "load_5m": 1.98,
+    "load_15m": 1.62,
+    "ram_pct": 42,                  // includes cache (macOS overestimates)
+    "ram_pressure_pct": 31,         // active+wired only, cache excluded
     "ram_used_gb": 25.6,
     "ram_total_gb": 64.0,
+    "ram_swap_pct": 0,              // (v0.1.12+)
+    "ram_swap_used_gb": 0.0,
+    "ram_swap_total_gb": 4.0,
+    "ram_active_gb": 18.4,          // (v0.1.12+, where exposed)
+    "ram_inactive_gb": 7.2,
+    "ram_cached_gb": 12.3,
     "disk_pct": 1,
-    "net_up_kbps": 0,
+    "net_up_kbps": 0,               // aggregate (kept for back-compat)
     "net_down_kbps": 81,
+    "ifaces": [                     // top-3 by traffic (v0.1.12+)
+      {"name": "en0", "up_kbps": 12, "down_kbps": 81,
+       "up_total_mb": 4, "down_total_mb": 27,
+       "is_up": true, "is_active": true},
+      {"name": "utun4", "up_kbps": 0, "down_kbps": 0,
+       "up_total_mb": 0, "down_total_mb": 0,
+       "is_up": true, "is_active": false}
+    ],
     "battery_pct": 80,
     "battery_charging": true,
     "temp_cpu_c": null
+  },
+  "gpu": {                          // top-level (v0.1.12+)
+    "available": true,              // false ⇒ no GPU detected / not supported
+    "vendor": "Apple",              // "Apple" | "NVIDIA" | "AMD"
+    "name": "Apple M5 Max",
+    "util_pct": 26,
+    "vram_used_mb": 2584,
+    "vram_total_mb": null,          // null on Apple Silicon (unified memory)
+    "temp_c": null,
+    "power_w": null,
+    "count": 1                      // total GPUs detected (we surface the first)
   },
   "ai": {
     "claude_code": {
@@ -85,7 +116,7 @@ Any field may be `null`. The firmware tolerates missing fields and renders `--` 
 
 **Codex tokens:** dashd derives per-session tokens by diffing successive cumulative `total_token_usage` values from `token_count` events (the trick borrowed from ccusage). State persists in `~/.config/dashd/codex_state.json`. Codex's own `rate_limits.primary.used_percent` is the actual quota usage — exposed as `block_used_pct` and `block_pct`; there's no time-elapsed metric for Codex. Cost stays `null` because Anthropic / OpenAI don't publish Codex pricing publicly.
 
-### Anthropic OAuth gauges (v0.1.11+, opt-in)
+### Anthropic OAuth gauges (v0.1.12+, opt-in)
 
 When the user enables the Anthropic OAuth API in **Settings → Privacy**, dashd polls `GET https://api.anthropic.com/api/oauth/usage` every 60 s and surfaces the response in a new top-level `anthropic` block:
 
@@ -117,11 +148,11 @@ When the user hasn't opted in, or the token is missing / expired / unreachable, 
 ### Device → Host (events)
 
 ```json
-{"type": "event", "name": "boot", "fw_version": "0.1.11", "v": 1}
-{"type": "event", "name": "hello_ack", "fw_version": "0.1.11", "v": 1}
+{"type": "event", "name": "boot", "fw_version": "0.1.12", "v": 1}
+{"type": "event", "name": "hello_ack", "fw_version": "0.1.12", "v": 1}
 {"type": "event", "name": "page_changed", "page": "AI Spend"}
 {"type": "event", "name": "button_long_press"}
-{"type": "event", "name": "log", "level": "info", "msg": "dashd fw 0.1.11 up, 8 pages, w=240 h=320"}
+{"type": "event", "name": "log", "level": "info", "msg": "dashd fw 0.1.12 up, 8 pages, w=240 h=320"}
 ```
 
 ## Handshake
@@ -191,7 +222,7 @@ All `cmd` messages travel over whichever transport currently owns the session �
 {"type": "cmd", "name": "show_page", "page": "AI Spend"}
 {"type": "cmd", "name": "set_brightness", "value": 80}       // 0..100 %
 
-// Auto-advance: device cycles through enabled pages on a timer (v0.1.11+).
+// Auto-advance: device cycles through enabled pages on a timer (v0.1.12+).
 // Default ON with 8 s sequential. All fields optional — omitted fields
 // keep their current value. Persisted to NVS so the cycle continues
 // across reboots, including when the host is offline.
@@ -273,10 +304,10 @@ The firmware can be updated over either transport. The agent downloads the match
 {"type": "cmd", "name": "fw_update_begin",
  "size": 1015200,
  "sha256": "8d3f…2a7b",            // 64 lowercase hex chars
- "version": "0.1.11"}
+ "version": "0.1.12"}
 
 // Device → Host:
-{"type":"event","name":"fw_update_started","ok":true,"version":"0.1.11"}
+{"type":"event","name":"fw_update_started","ok":true,"version":"0.1.12"}
 //   on failure: {"…","ok":false,"error":"bad sha256 (expected 64 hex chars)"}
 
 // Stream chunks. The agent uses WINDOW=1 for firmware OTA (strictly

@@ -3,7 +3,7 @@
 // Build-wide constants for the dashd firmware.
 // Pinout matches docs/wiring.md and User_Setups/Setup_Dashd.h.
 
-#define DASHD_FW_VERSION "0.1.11"
+#define DASHD_FW_VERSION "0.1.12"
 
 // Wire-protocol version. Must match agent/dashd/protocol.py PROTOCOL_VERSION.
 // Reported in `boot` and `hello_ack` events so the host can negotiate.

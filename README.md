@@ -6,7 +6,7 @@ USB: power + data over one cable. Bluetooth: cable-free, the device runs on any 
 
 ## Status
 
-**v0.1.11 — fixes wrong "X/Y" page counter + title/content mismatch on devices with some pages hidden.** See [GitHub Releases](https://github.com/cristianonescu/dashd/releases) for installers (macOS / Windows / Linux) and firmware binaries.
+**v0.1.12 — dedicated CPU / Memory / GPU / Network pages.** The catch-all "System" page is replaced by four focused screens (each with its full picture, no overlap). New cross-platform GPU collector — Apple Silicon via ioreg, NVIDIA via nvidia-smi, Linux AMD via sysfs. The Electron Live tab gets matching cards. See [GitHub Releases](https://github.com/cristianonescu/dashd/releases) for installers (macOS / Windows / Linux) and firmware binaries.
 
 - **Agent** (Python 3.11+): 8 active collectors + 3 stubs (Slack / Teams / WhatsApp), in-process pub/sub bus, local IPC server, transport abstraction over USB-CDC + BLE GATT, ships as a single PyInstaller binary.
 - **AI usage accuracy** (v0.1.6+): hybrid pipeline — direct Anthropic OAuth API for Session/Weekly/Sonnet/Extra gauges (opt-in, matches Claude.ai exactly) + local JSONL scan for token counts, cost, per-project breakdown, burn rate. ccusage-style block segmentation; pace metric ("on track / behind / far behind"); LiteLLM-backed per-model pricing with daily refresh.
@@ -107,7 +107,7 @@ npx electron-builder --linux             # → release/*.AppImage + .deb     (ru
 For **cross-platform installers in one shot**, push a tag and let the GitHub Actions workflow build on all three OSes:
 
 ```bash
-git tag v0.1.11 && git push --tags        # triggers .github/workflows/build.yml
+git tag v0.1.12 && git push --tags        # triggers .github/workflows/build.yml
 ```
 
 Each runner builds the agent binary for its own OS, builds the UI, runs `electron-builder`, and uploads the installer as a release artifact. Full packaging notes: [docs/packaging.md](docs/packaging.md).
@@ -210,8 +210,8 @@ Both the desktop app and the device firmware update from the same GitHub Release
 
 The app checks GitHub Releases on launch and then every 6 hours. When a newer release is found:
 
-- A banner appears in the top-right corner: *"dashd v0.1.11 available — Download"*.
-- The tray icon's right-click menu adds **▾ v0.1.11 available → Download update**.
+- A banner appears in the top-right corner: *"dashd v0.1.12 available — Download"*.
+- The tray icon's right-click menu adds **▾ v0.1.12 available → Download update**.
 - **Settings → Updates** has the full picture: current version, last-check timestamp, release notes, Download / Restart-and-install / Open release page.
 
 Downloads run in the background; the new version installs on the next quit (or right away if you click **Restart and install**).

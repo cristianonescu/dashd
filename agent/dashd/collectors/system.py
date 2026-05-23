@@ -1,12 +1,19 @@
 """Cross-platform system metrics via psutil."""
 from __future__ import annotations
 
+import os
+import socket
 import time
 from typing import Any
 
 import psutil
 
 from dashd.collectors.base import Collector
+
+
+# Per-interface counters: keep the previous-tick counter so we can
+# compute per-iface kbps. Map: ifname -> (bytes_sent, bytes_recv, mono_ts).
+_TopProc = dict[str, Any]
 
 
 # How many top-N entries to ship per category. 3 keeps the wire payload small;
@@ -156,6 +163,28 @@ def _top_processes(n: int = TOP_N) -> tuple[list[dict], list[dict]]:
     return by_cpu, by_ram
 
 
+def _detect_active_iface() -> str | None:
+    """Discover which interface routes the default outbound traffic.
+    Uses the UDP-connect trick — no packets actually leave the box, but
+    the kernel resolves the source IP, which we then match against
+    `net_if_addrs`. Returns None when there's no usable route (e.g.
+    fully offline)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            src_ip = s.getsockname()[0]
+        finally:
+            s.close()
+    except OSError:
+        return None
+    for name, addrs in psutil.net_if_addrs().items():
+        for a in addrs:
+            if a.address == src_ip:
+                return name
+    return None
+
+
 class SystemCollector(Collector):
     key = "system"
 
@@ -164,6 +193,14 @@ class SystemCollector(Collector):
         # Seed counters so the first delta is meaningful.
         self._last_net = psutil.net_io_counters()
         self._last_t = time.monotonic()
+        # Per-interface counters keyed by ifname — same idea as aggregate
+        # but at finer resolution so the Network page can rank ifaces.
+        self._last_per_iface: dict[str, tuple[int, int, float]] = {}
+        try:
+            for name, c in psutil.net_io_counters(pernic=True).items():
+                self._last_per_iface[name] = (c.bytes_sent, c.bytes_recv, self._last_t)
+        except Exception:
+            pass
         # Prime cpu_percent so the next call returns a real value, not 0.0.
         psutil.cpu_percent(percpu=True)
         # Prime per-process counters too — the first call returns 0 for every
@@ -173,6 +210,47 @@ class SystemCollector(Collector):
                 p.cpu_percent(interval=None)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
+
+    def _per_iface_stats(self, now: float) -> list[dict[str, Any]]:
+        """Return top-3 interfaces by combined recent traffic, each with
+        kbps deltas, today-total MB (approximate — we only track since
+        agent start, not calendar day), and is_up/is_active flags."""
+        try:
+            counters = psutil.net_io_counters(pernic=True)
+            ifstats = psutil.net_if_stats()
+        except Exception:
+            return []
+        active_name = _detect_active_iface()
+        rows: list[dict[str, Any]] = []
+        for name, c in counters.items():
+            # Skip the loopback — never interesting on the device.
+            if name in ("lo", "lo0") or name.startswith("Loopback"):
+                continue
+            prev = self._last_per_iface.get(name)
+            self._last_per_iface[name] = (c.bytes_sent, c.bytes_recv, now)
+            if prev is None:
+                up_kbps = down_kbps = 0
+            else:
+                dt = max(now - prev[2], 1e-3)
+                up_kbps   = int((c.bytes_sent - prev[0]) * 8 / 1000 / dt)
+                down_kbps = int((c.bytes_recv - prev[1]) * 8 / 1000 / dt)
+                # Clamp negative deltas (counter wrap / iface restart).
+                if up_kbps   < 0: up_kbps = 0
+                if down_kbps < 0: down_kbps = 0
+            stat = ifstats.get(name)
+            is_up = bool(stat.isup) if stat else False
+            rows.append({
+                "name": name[:11],
+                "up_kbps": up_kbps,
+                "down_kbps": down_kbps,
+                "up_total_mb": c.bytes_sent // (1024 * 1024),
+                "down_total_mb": c.bytes_recv // (1024 * 1024),
+                "is_up": is_up,
+                "is_active": (name == active_name),
+            })
+        # Top 3 by combined traffic (descending).
+        rows.sort(key=lambda r: r["up_kbps"] + r["down_kbps"], reverse=True)
+        return rows[:3]
 
     async def collect(self) -> dict[str, Any] | None:
         now = time.monotonic()
@@ -213,15 +291,64 @@ class SystemCollector(Collector):
         if active is not None and wired is not None and vm.total:
             ram_pressure_pct = round((active + wired) * 100 / vm.total)
 
+        # Memory detail. Each field is optional — falls back to None
+        # when psutil doesn't expose it on this OS.
+        ram_active_gb   = round(active / (1024**3), 1) if active is not None else None
+        ram_inactive_gb = round(getattr(vm, "inactive", 0) / (1024**3), 1) if getattr(vm, "inactive", None) is not None else None
+        ram_cached_gb   = round(getattr(vm, "cached", 0) / (1024**3), 1) if getattr(vm, "cached", None) is not None else None
+
+        # Swap.
+        try:
+            swap = psutil.swap_memory()
+            ram_swap_pct       = round(swap.percent) if swap.total else 0
+            ram_swap_used_gb   = round(swap.used  / (1024**3), 1)
+            ram_swap_total_gb  = round(swap.total / (1024**3), 1)
+        except Exception:
+            ram_swap_pct = None
+            ram_swap_used_gb = None
+            ram_swap_total_gb = None
+
+        # CPU frequency + load average.
+        cpu_freq_mhz: int | None = None
+        cpu_freq_max_mhz: int | None = None
+        try:
+            f = psutil.cpu_freq()
+            if f:
+                if f.current: cpu_freq_mhz = int(round(f.current))
+                if f.max:     cpu_freq_max_mhz = int(round(f.max))
+        except Exception:
+            pass
+
+        load_1m = load_5m = load_15m = None
+        try:
+            la1, la5, la15 = os.getloadavg()
+            load_1m, load_5m, load_15m = round(la1, 2), round(la5, 2), round(la15, 2)
+        except (OSError, AttributeError):
+            pass
+
+        ifaces = self._per_iface_stats(now)
+
         return {
             "cpu_pct": cpu,
+            "cpu_freq_mhz": cpu_freq_mhz,
+            "cpu_freq_max_mhz": cpu_freq_max_mhz,
+            "load_1m": load_1m,
+            "load_5m": load_5m,
+            "load_15m": load_15m,
             "ram_pct": round(vm.percent),
             "ram_pressure_pct": ram_pressure_pct,  # cache-excluded; may be None on Linux/Windows
             "ram_used_gb": round(vm.used / (1024**3), 1),
             "ram_total_gb": round(vm.total / (1024**3), 1),
+            "ram_swap_pct": ram_swap_pct,
+            "ram_swap_used_gb": ram_swap_used_gb,
+            "ram_swap_total_gb": ram_swap_total_gb,
+            "ram_cached_gb": ram_cached_gb,
+            "ram_active_gb": ram_active_gb,
+            "ram_inactive_gb": ram_inactive_gb,
             "disk_pct": round(psutil.disk_usage("/").percent),
             "net_up_kbps": up_kbps,
             "net_down_kbps": down_kbps,
+            "ifaces": ifaces,
             "battery_pct": battery_pct,
             "battery_charging": battery_charging,
             "temp_cpu_c": temp_c,

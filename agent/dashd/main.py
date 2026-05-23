@@ -23,6 +23,7 @@ from dashd.collectors.codex import CodexCollector
 from dashd.collectors.email_imap import EmailCollector
 from dashd.collectors.git import GitCollector
 from dashd.collectors.github import GitHubCollector
+from dashd.collectors.gpu import GpuCollector
 from dashd.collectors.imessage_macos import IMessageCollector
 from dashd.collectors.system import SystemCollector
 from dashd.collectors.whatsapp import WhatsAppCollector
@@ -77,6 +78,8 @@ def _build_collectors(cfg: Config) -> list:
     collectors: list = []
     if cfg.collectors.system.enabled:
         collectors.append(SystemCollector(enabled=True))
+    if cfg.collectors.gpu.enabled:
+        collectors.append(GpuCollector(enabled=True))
     if cfg.collectors.claude_code.enabled:
         rates = cfg.collectors.claude_code.model_extra.get("rates") if cfg.collectors.claude_code.model_extra else None
         collectors.append(ClaudeCodeCollector(enabled=True, rate_overrides=rates or {}))

@@ -50,6 +50,11 @@ class CollectorToggle(BaseModel):
 
 class CollectorsConfig(BaseModel):
     system: CollectorToggle = Field(default_factory=lambda: CollectorToggle(enabled=True))
+    # GPU collector — cross-platform best-effort. Returns
+    # `{available: false, reason: "..."}` on systems with no detectable
+    # GPU (or no driver), so it's safe to leave on. Disable here to
+    # skip the per-tick subprocess cost.
+    gpu: CollectorToggle = Field(default_factory=lambda: CollectorToggle(enabled=True))
     claude_code: CollectorToggle = Field(default_factory=CollectorToggle)
     codex: CollectorToggle = Field(default_factory=CollectorToggle)
     git: CollectorToggle = Field(default_factory=CollectorToggle)

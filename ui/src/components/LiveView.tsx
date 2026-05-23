@@ -63,53 +63,10 @@ export default function LiveView() {
 
       <div className="row">
         <div className="col">
-          <div className="card">
-            <h3 data-hint="Live machine vitals sampled by the agent every ~2 s: CPU load, memory pressure, disk, network and battery.">System</h3>
-
-            <div className="kv" data-hint="Average load across all CPU cores. The bar turns amber past 70% and red past 90%.">
-              <span className="k">CPU</span>
-              <span className="v"><span className="big-num" style={{ fontSize: 22 }}>{cpuAvg != null ? `${cpuAvg}%` : "—"}</span></span>
-            </div>
-            <Bar pct={cpuAvg} />
-
-            <div className="kv" data-hint="'Real' memory pressure — active + wired memory only, excluding reclaimable cache. A better 'will this swap?' signal than raw RAM used.">
-              <span className="k">RAM pressure</span>
-              <span className="v">
-                {ramPress != null ? `${ramPress}%` : "—"}
-                {sys.ram_used_gb != null && (
-                  <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
-                    {sys.ram_used_gb} / {sys.ram_total_gb} GB
-                  </span>
-                )}
-              </span>
-            </div>
-            <Bar pct={ramPress} warnAt={70} critAt={90} />
-
-            <div className="kv" data-hint="Used space on the primary disk volume.">
-              <span className="k">Disk</span>
-              <span className="v">{sys.disk_pct != null ? `${sys.disk_pct}%` : "—"}</span>
-            </div>
-            <Bar pct={sys.disk_pct} warnAt={85} critAt={95} />
-
-            <div className="kv" data-hint="Current network throughput — ↓ download, ↑ upload, in kilobits per second.">
-              <span className="k">Network</span>
-              <span className="v">
-                {sys.net_down_kbps != null ? `↓ ${sys.net_down_kbps} · ↑ ${sys.net_up_kbps} kbps` : "—"}
-              </span>
-            </div>
-            <div className="kv" data-hint="Battery charge level. ⚡ means the machine is plugged in and charging.">
-              <span className="k">Battery</span>
-              <span className="v">
-                {sys.battery_pct != null ? `${sys.battery_pct}%${sys.battery_charging ? " ⚡" : ""}` : "n/a"}
-              </span>
-            </div>
-            {sys.temp_cpu_c != null && (
-              <div className="kv" data-hint="CPU package temperature, when the platform exposes a sensor.">
-                <span className="k">CPU temp</span>
-                <span className="v">{sys.temp_cpu_c.toFixed(0)}°C</span>
-              </div>
-            )}
-          </div>
+          <CpuCard sys={sys}/>
+          <MemoryCard sys={sys}/>
+          <GpuCard gpu={(s as any).gpu ?? null}/>
+          <NetworkCard sys={sys}/>
 
           <div className="card">
             <h3 data-hint="AI coding-tool usage. Claude Code figures come from ~/.claude/projects; Codex from ~/.codex/sessions.">AI Spend</h3>
@@ -304,6 +261,232 @@ export default function LiveView() {
           <TopProcsCard system={sys} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Resource cards (v0.1.12+). The catch-all "System" card used to roll
+// CPU/RAM/disk/net/battery into one box; v0.1.12 splits each resource
+// into its own card matching the dedicated device pages. The cards are
+// resilient to missing fields — anything `null` renders as "—".
+// ─────────────────────────────────────────────────────────────────────
+
+function CpuCard({ sys }: { sys: any }) {
+  const cpuAvg = avg(sys.cpu_pct);
+  const cores: number[] = sys.cpu_pct ?? [];
+  return (
+    <div className="card">
+      <h3 data-hint="Per-core utilization with load average, frequency, temperature and battery. Mirrors the CPU page on the device.">CPU</h3>
+      <div className="kv" data-hint="Average across all CPU cores.">
+        <span className="k">Avg</span>
+        <span className="v">
+          <span className="big-num" style={{ fontSize: 22 }}>
+            {cpuAvg != null ? `${cpuAvg}%` : "—"}
+          </span>
+        </span>
+      </div>
+      <Bar pct={cpuAvg}/>
+      {cores.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, margin: "8px 0 4px" }}
+             data-hint="Per-core utilization. Useful for spotting one core pinned at 100% while the others idle.">
+          {cores.map((pct, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+              <span className="dim" style={{ width: 14 }}>{i}</span>
+              <div style={{ flex: 1 }}><Bar pct={pct}/></div>
+              <span style={{ width: 30, textAlign: "right" }}>{pct}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {sys.load_1m != null && (
+        <div className="kv" data-hint="UNIX load average over 1 / 5 / 15 minutes. Loosely 'number of runnable processes' — values above your core count signal contention.">
+          <span className="k">Load 1/5/15</span>
+          <span className="v">{sys.load_1m} · {sys.load_5m} · {sys.load_15m}</span>
+        </div>
+      )}
+      {sys.cpu_freq_mhz != null && (
+        <div className="kv" data-hint="Current CPU clock frequency. Many CPUs idle far below their max — a sustained max is a thermal/load tell.">
+          <span className="k">Frequency</span>
+          <span className="v">
+            {sys.cpu_freq_mhz} MHz
+            {sys.cpu_freq_max_mhz != null && (
+              <span className="dim" style={{ marginLeft: 6, fontWeight: 400 }}>/ {sys.cpu_freq_max_mhz} max</span>
+            )}
+          </span>
+        </div>
+      )}
+      {sys.temp_cpu_c != null && (
+        <div className="kv" data-hint="CPU package temperature (when exposed by the OS).">
+          <span className="k">Temp</span>
+          <span className="v">{sys.temp_cpu_c.toFixed(0)}°C</span>
+        </div>
+      )}
+      {sys.battery_pct != null && (
+        <div className="kv" data-hint="Battery charge level. ⚡ means the machine is plugged in and charging.">
+          <span className="k">Battery</span>
+          <span className="v">{sys.battery_pct}%{sys.battery_charging ? " ⚡" : ""}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemoryCard({ sys }: { sys: any }) {
+  const ramPress = sys.ram_pressure_pct ?? sys.ram_pct;
+  return (
+    <div className="card">
+      <h3 data-hint="Memory pressure, swap usage, breakdown by category, and the primary disk. Mirrors the Memory page on the device.">Memory</h3>
+      <div className="kv" data-hint="'Real' memory pressure — active + wired only, excluding reclaimable cache. A better 'will this swap?' signal than raw RAM used.">
+        <span className="k">Pressure</span>
+        <span className="v">
+          {ramPress != null ? `${ramPress}%` : "—"}
+          {sys.ram_used_gb != null && (
+            <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+              {sys.ram_used_gb} / {sys.ram_total_gb} GB
+            </span>
+          )}
+        </span>
+      </div>
+      <Bar pct={ramPress} warnAt={70} critAt={90}/>
+      {sys.ram_swap_total_gb != null && sys.ram_swap_total_gb > 0 && (
+        <>
+          <div className="kv" data-hint="Swap = virtual memory paged out to disk. Non-zero values during normal load mean the system is contended.">
+            <span className="k">Swap</span>
+            <span className="v">
+              {sys.ram_swap_used_gb} / {sys.ram_swap_total_gb} GB
+              <span className="dim" style={{ marginLeft: 6, fontWeight: 400 }}>({sys.ram_swap_pct}%)</span>
+            </span>
+          </div>
+          <Bar pct={sys.ram_swap_pct} warnAt={50} critAt={80}/>
+        </>
+      )}
+      {(sys.ram_active_gb != null || sys.ram_inactive_gb != null || sys.ram_cached_gb != null) && (
+        <div data-hint="Memory broken down by lifecycle. 'Active' = recently used, 'Inactive' = could be reclaimed, 'Cached' = file-system cache." style={{ marginTop: 6 }}>
+          {sys.ram_active_gb != null && (
+            <div className="kv"><span className="k">Active</span><span className="v">{sys.ram_active_gb} GB</span></div>
+          )}
+          {sys.ram_inactive_gb != null && (
+            <div className="kv"><span className="k">Inactive</span><span className="v">{sys.ram_inactive_gb} GB</span></div>
+          )}
+          {sys.ram_cached_gb != null && (
+            <div className="kv"><span className="k">Cached</span><span className="v">{sys.ram_cached_gb} GB</span></div>
+          )}
+        </div>
+      )}
+      {sys.disk_pct != null && (
+        <>
+          <div className="kv" data-hint="Used space on the primary disk volume.">
+            <span className="k">Disk</span>
+            <span className="v">{sys.disk_pct}%</span>
+          </div>
+          <Bar pct={sys.disk_pct} warnAt={85} critAt={95}/>
+        </>
+      )}
+    </div>
+  );
+}
+
+function GpuCard({ gpu }: { gpu: any }) {
+  if (!gpu || gpu.available === false) {
+    return (
+      <div className="card">
+        <h3 data-hint="GPU utilization, VRAM, temperature and power. When the agent can't detect a GPU (or the platform doesn't expose stats), this card shows why.">GPU</h3>
+        <p className="dim" style={{ fontSize: 13, margin: 0 }}>
+          GPU stats not available
+          {gpu?.reason && <> — <span className="dim">{gpu.reason}</span></>}
+          .
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="card">
+      <h3 data-hint="GPU utilization, VRAM, temperature and power. Mirrors the GPU page on the device.">GPU</h3>
+      <div className="kv">
+        <span className="k">Device</span>
+        <span className="v">
+          {gpu.name ?? "—"}
+          {gpu.count > 1 && <span className="dim" style={{ marginLeft: 6, fontWeight: 400 }}>(+{gpu.count - 1} more)</span>}
+        </span>
+      </div>
+      {gpu.vendor && (
+        <div className="kv"><span className="k">Vendor</span><span className="v">{gpu.vendor}</span></div>
+      )}
+      <div className="kv" data-hint="Overall GPU usage. On macOS this is IOAccelerator's Device Utilization %; on NVIDIA it's the SM utilization.">
+        <span className="k">Util</span>
+        <span className="v">{gpu.util_pct != null ? `${gpu.util_pct}%` : "—"}</span>
+      </div>
+      <Bar pct={gpu.util_pct}/>
+      {gpu.vram_used_mb != null && (
+        gpu.vram_total_mb != null ? (
+          <>
+            <div className="kv"><span className="k">VRAM</span>
+              <span className="v">{gpu.vram_used_mb} / {gpu.vram_total_mb} MB</span>
+            </div>
+            <Bar pct={Math.round((gpu.vram_used_mb * 100) / gpu.vram_total_mb)} warnAt={80} critAt={95}/>
+          </>
+        ) : (
+          <div className="kv" data-hint="On Apple Silicon, the GPU shares unified system memory — there's no fixed VRAM ceiling, so we show only the currently allocated amount.">
+            <span className="k">VRAM</span>
+            <span className="v">{gpu.vram_used_mb} MB <span className="dim" style={{ fontWeight: 400 }}>(unified)</span></span>
+          </div>
+        )
+      )}
+      {gpu.temp_c != null && (
+        <div className="kv"><span className="k">Temp</span><span className="v">{gpu.temp_c}°C</span></div>
+      )}
+      {gpu.power_w != null && (
+        <div className="kv"><span className="k">Power</span><span className="v">{gpu.power_w} W</span></div>
+      )}
+    </div>
+  );
+}
+
+function NetworkCard({ sys }: { sys: any }) {
+  const ifaces: Array<any> = sys.ifaces ?? [];
+  const active = ifaces.find((i) => i.is_active) ?? ifaces[0];
+  return (
+    <div className="card">
+      <h3 data-hint="Active outbound interface, current throughput, and a per-interface breakdown of traffic since the OS counters last reset (usually boot). Mirrors the Network page on the device.">Network</h3>
+      {active ? (
+        <>
+          <div className="kv" data-hint="The interface routing your default outbound traffic, detected via the kernel route table.">
+            <span className="k">Active</span>
+            <span className="v">{active.name}</span>
+          </div>
+          <div className="kv" data-hint="Current download / upload throughput on the active interface, sampled over the last tick.">
+            <span className="k">Throughput</span>
+            <span className="v">↓ {active.down_kbps} · ↑ {active.up_kbps} kbps</span>
+          </div>
+        </>
+      ) : (
+        <div className="kv" data-hint="No active interface detected — the machine has no default route, or psutil couldn't enumerate interfaces.">
+          <span className="k">Status</span><span className="v">no data</span>
+        </div>
+      )}
+      {ifaces.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0" }}>
+            interfaces
+          </div>
+          {ifaces.map((i, idx) => (
+            <div key={idx} className="kv" data-hint={`${i.name} — ${i.is_active ? "active outbound" : i.is_up ? "up" : "down"}. Totals are bytes seen by the OS-level counters since they last reset (typically system boot, not the calendar day).`}>
+              <span className="k">
+                {i.name}
+                {i.is_active && <span className="dim" style={{ marginLeft: 4, fontWeight: 400 }}>*</span>}
+                {!i.is_up && <span className="dim" style={{ marginLeft: 4, fontWeight: 400 }}>(down)</span>}
+              </span>
+              <span className="v">
+                ↓ {i.down_kbps}k · ↑ {i.up_kbps}k
+                <span className="dim" style={{ marginLeft: 6, fontSize: 11, fontWeight: 400 }}>
+                  ({i.down_total_mb}/{i.up_total_mb} MB since boot)
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

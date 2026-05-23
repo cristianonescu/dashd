@@ -1,13 +1,36 @@
 /** Shared types between renderer and main, mirroring the agent's protocol. */
 
+export type NetIfaceStat = {
+  name: string;
+  up_kbps: number;
+  down_kbps: number;
+  up_total_mb: number;       // bytes seen by OS counters / (1024^2)
+  down_total_mb: number;     // — since their last reset (usually boot)
+  is_up: boolean;
+  is_active: boolean;        // primary outbound interface
+};
+
 export type SystemState = {
   cpu_pct?: number[];
+  cpu_freq_mhz?: number | null;
+  cpu_freq_max_mhz?: number | null;
+  load_1m?: number | null;
+  load_5m?: number | null;
+  load_15m?: number | null;
   ram_pct?: number;
+  ram_pressure_pct?: number | null;   // cache-excluded; macOS only
   ram_used_gb?: number;
   ram_total_gb?: number;
+  ram_swap_pct?: number | null;
+  ram_swap_used_gb?: number | null;
+  ram_swap_total_gb?: number | null;
+  ram_active_gb?: number | null;
+  ram_inactive_gb?: number | null;
+  ram_cached_gb?: number | null;
   disk_pct?: number;
   net_up_kbps?: number;
   net_down_kbps?: number;
+  ifaces?: NetIfaceStat[];   // top-3 by traffic
   battery_pct?: number | null;
   battery_charging?: boolean | null;
   temp_cpu_c?: number | null;
@@ -86,10 +109,24 @@ export type AnthropicState = {
   };
 };
 
+export type GpuState = {
+  available: boolean;
+  reason?: string;
+  vendor?: string;
+  name?: string;
+  util_pct?: number | null;
+  vram_used_mb?: number | null;
+  vram_total_mb?: number | null;   // null on unified-memory devices (Apple Silicon)
+  temp_c?: number | null;
+  power_w?: number | null;
+  count?: number;
+};
+
 export type StateFrame = {
   type: "state";
   ts: number;
   system?: SystemState | null;
+  gpu?: GpuState | null;
   ai?: AIState | null;
   git?: GitState | null;
   github?: {

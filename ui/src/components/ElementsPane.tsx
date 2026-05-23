@@ -34,13 +34,28 @@ const CATALOG: PageGroup[] = [
     { id: "home.prs",  label: "PRs tile" },
     { id: "home.msgs", label: "Messages tile" },
   ]},
-  { page: "System", elements: [
-    { id: "system.cpu",     label: "Per-core CPU bars" },
-    { id: "system.ram",     label: "RAM gauge" },
-    { id: "system.disk",    label: "Disk gauge" },
-    { id: "system.net",     label: "Network throughput" },
-    { id: "system.battery", label: "Battery" },
-    { id: "system.temp",    label: "CPU temperature" },
+  { page: "CPU", elements: [
+    { id: "cpu.cores", label: "Per-core bars + average" },
+    { id: "cpu.load",  label: "Load average (1/5/15 m)" },
+    { id: "cpu.freq",  label: "Frequency (current / max)" },
+    { id: "cpu.temp",  label: "CPU temperature" },
+    { id: "cpu.top",   label: "Top CPU processes" },
+  ]},
+  { page: "Memory", elements: [
+    { id: "memory.headline",  label: "Pressure + used/total" },
+    { id: "memory.swap",      label: "Swap usage" },
+    { id: "memory.breakdown", label: "Active / Inactive / Cached" },
+    { id: "memory.top",       label: "Top RAM processes" },
+  ]},
+  { page: "GPU", elements: [
+    { id: "gpu.headline", label: "Device + vendor" },
+    { id: "gpu.util",     label: "Utilization %" },
+    { id: "gpu.vram",     label: "VRAM" },
+    { id: "gpu.thermals", label: "Temperature + power" },
+  ]},
+  { page: "Network", elements: [
+    { id: "network.headline", label: "Active iface + throughput" },
+    { id: "network.ifaces",   label: "Per-interface table" },
   ]},
   { page: "AI Spend", elements: [
     { id: "ai.claude", label: "Claude Code section" },
