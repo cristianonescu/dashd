@@ -1,0 +1,32 @@
+# Python — scoped paths only so we don't catch ui/build/, etc.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+agent/build/
+agent/dist/
+
+# Electron / Node
+node_modules/
+dist-electron/
+release/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+.cache/
+
+# OS
+.DS_Store
+
+# Local config & secrets
+config.toml
+.env
+*.local.toml
+
+# Runtime state — never committed even by accident.
+.config/dashd/ipc.token
+.config/dashd/ble_trust.json

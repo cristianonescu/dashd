@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" font-family="-apple-system, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif">
+  <!--
+    dashd wiring — physical board view.
+    Companion to wiring.svg (schematic). Shows the real ESP32-C3 SuperMini
+    pinout, the ST7789V module on the right, and the tactile button below
+    the ESP. Wires loop the way jumper wires actually do — under-the-board
+    routes for left-side ESP nets, gentle curves for right-side nets.
+
+    Coordinates are absolute (no nested transforms touch the wire paths)
+    so every line really does land on the right pad.
+  -->
+  <defs>
+    <style>
+      .bg          { fill: #0A0E14; }
+      .title       { fill: #E6EDF3; font-size: 20px; font-weight: 700; }
+      .subtitle    { fill: #8B98A5; font-size: 12px; }
+
+      /* ESP board */
+      .esp-board   { fill: #2A1A4A; stroke: #4A2F70; stroke-width: 2; }
+      .esp-pad     { fill: #C9A24F; stroke: #4A2F70; stroke-width: 0.5; }
+      .esp-chip    { fill: #1A1024; stroke: #3A2050; stroke-width: 1; }
+      .esp-ant     { fill: #C9A24F; }
+      .esp-usbc    { fill: #C0C5CE; stroke: #6B7280; stroke-width: 1; }
+      .esp-led     { fill: #4D7FE8; }
+      .esp-label   { fill: #E6EDF3; font-size: 9px; font-weight: 600; }
+      .esp-text    { fill: #C9A24F; font-size: 10px; font-weight: 700; }
+
+      /* Display module */
+      .disp-board  { fill: #161A22; stroke: #3A4654; stroke-width: 2; }
+      .disp-bezel  { fill: #0A0E14; }
+      .disp-screen { fill: #131820; }
+      .disp-pad    { fill: #C9A24F; stroke: #3A4654; stroke-width: 0.5; }
+      .disp-label  { fill: #E6EDF3; font-size: 10px; font-weight: 600; }
+      .disp-text   { fill: #8B98A5; font-size: 9px; }
+
+      /* Button */
+      .btn-base    { fill: #1F2933; stroke: #3A4654; stroke-width: 1.5; }
+      .btn-cap     { fill: #2A3441; stroke: #56B6C2; stroke-width: 1.5; }
+      .btn-lead    { fill: #C9A24F; stroke: #3A4654; stroke-width: 0.5; }
+      .btn-label   { fill: #E6EDF3; font-size: 10px; font-weight: 600; }
+
+      /* Wires */
+      .wire { stroke-width: 2.5; fill: none; stroke-linecap: round; }
+      .w-pwr  { stroke: #F85149; }
+      .w-gnd  { stroke: #8B98A5; }
+      .w-clk  { stroke: #D29922; }
+      .w-data { stroke: #4D7FE8; }
+      .w-cs   { stroke: #3FB950; }
+      .w-dc   { stroke: #C678DD; }
+      .w-rst  { stroke: #E5C07B; }
+      .w-bl   { stroke: #56B6C2; }
+      .w-btn  { stroke: #F85149; stroke-dasharray: 5 3; }
+
+      .legend-text { fill: #E6EDF3; font-size: 11px; }
+      .note { fill: #8B98A5; font-size: 11px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="900" height="700"/>
+
+  <!-- Title -->
+  <text class="title" x="36" y="40">dashd — physical board view</text>
+  <text class="subtitle" x="36" y="60">USB-C up, antenna down on the ESP. Display module on the right. Tactile button under the ESP. Wires shown loop the way jumper wires actually route on a breadboard.</text>
+
+  <!--
+    =================================================================
+    ESP32-C3 SuperMini
+    Body: x = 120..260  (140 wide),  y = 120..360 (240 tall)
+    Left pads centers:  x = 115
+    Right pads centers: x = 265
+    Pad ys: 140, 168, 196, 224, 252, 280, 308, 336
+    =================================================================
+  -->
+  <g>
+    <!-- board body -->
+    <rect class="esp-board" x="120" y="120" width="140" height="240" rx="8"/>
+    <!-- USB-C jack on top -->
+    <rect class="esp-usbc" x="167" y="106" width="46" height="16" rx="3"/>
+    <text class="esp-text" x="190" y="100" text-anchor="middle">USB-C</text>
+    <!-- chip in the middle -->
+    <rect class="esp-chip" x="160" y="180" width="60" height="60" rx="2"/>
+    <text class="esp-text" x="190" y="215" text-anchor="middle">ESP32-C3</text>
+    <!-- antenna at the bottom -->
+    <path class="esp-ant" d="M 145 320 L 235 320 L 230 340 L 150 340 Z"/>
+    <text class="esp-text" x="190" y="356" text-anchor="middle" font-size="8">ANT</text>
+    <!-- built-in LED dot -->
+    <circle class="esp-led" cx="150" cy="270" r="3"/>
+
+    <!-- LEFT PADS (x=110..120) -->
+    <g>
+      <rect class="esp-pad" x="110" y="135" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="163" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="191" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="219" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="247" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="275" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="303" width="10" height="10"/>
+      <rect class="esp-pad" x="110" y="331" width="10" height="10"/>
+
+      <text class="esp-label" x="122" y="144">5V</text>
+      <text class="esp-label" x="122" y="172">GND</text>
+      <text class="esp-label" x="122" y="200">3V3</text>
+      <text class="esp-label" x="122" y="228">GP4</text>
+      <text class="esp-label" x="122" y="256">GP3</text>
+      <text class="esp-label" x="122" y="284">GP2</text>
+      <text class="esp-label" x="122" y="312">GP1</text>
+      <text class="esp-label" x="122" y="340">GP0</text>
+    </g>
+
+    <!-- RIGHT PADS (x=260..270) -->
+    <g>
+      <rect class="esp-pad" x="260" y="135" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="163" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="191" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="219" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="247" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="275" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="303" width="10" height="10"/>
+      <rect class="esp-pad" x="260" y="331" width="10" height="10"/>
+
+      <text class="esp-label" x="258" y="144" text-anchor="end">GP5</text>
+      <text class="esp-label" x="258" y="172" text-anchor="end">GP6</text>
+      <text class="esp-label" x="258" y="200" text-anchor="end">GP7</text>
+      <text class="esp-label" x="258" y="228" text-anchor="end">GP8</text>
+      <text class="esp-label" x="258" y="256" text-anchor="end">GP9</text>
+      <text class="esp-label" x="258" y="284" text-anchor="end">GP10</text>
+      <text class="esp-label" x="258" y="312" text-anchor="end">GP20</text>
+      <text class="esp-label" x="258" y="340" text-anchor="end">GP21</text>
+    </g>
+
+    <text class="esp-text" x="190" y="380" text-anchor="middle">ESP32-C3 SuperMini</text>
+  </g>
+
+  <!--
+    =================================================================
+    ST7789V display module
+    Body: x = 540..820 (280 wide), y = 130..440 (310 tall)
+    Pin header on left edge at x=530..540
+    Pad y centers (8 pads): 168, 198, 228, 258, 288, 318, 348, 378
+    =================================================================
+  -->
+  <g>
+    <!-- module board -->
+    <rect class="disp-board" x="540" y="130" width="280" height="310" rx="6"/>
+    <!-- screen bezel + active area -->
+    <rect class="disp-bezel"  x="560" y="150" width="244" height="270" rx="3"/>
+    <rect class="disp-screen" x="568" y="158" width="228" height="254" rx="2"/>
+
+    <text class="disp-text" x="682" y="180" text-anchor="middle">240 × 320</text>
+    <text class="disp-text" x="682" y="196" text-anchor="middle">ST7789V</text>
+
+    <!-- 8 pads on left edge -->
+    <g>
+      <rect class="disp-pad" x="530" y="163" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="193" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="223" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="253" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="283" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="313" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="343" width="10" height="10"/>
+      <rect class="disp-pad" x="530" y="373" width="10" height="10"/>
+
+      <text class="disp-label" x="544" y="172">VCC</text>
+      <text class="disp-label" x="544" y="202">GND</text>
+      <text class="disp-label" x="544" y="232">SCL</text>
+      <text class="disp-label" x="544" y="262">SDA</text>
+      <text class="disp-label" x="544" y="292">RES</text>
+      <text class="disp-label" x="544" y="322">DC</text>
+      <text class="disp-label" x="544" y="352">CS</text>
+      <text class="disp-label" x="544" y="382">BLK</text>
+    </g>
+
+    <text class="esp-text" x="682" y="458" text-anchor="middle">ST7789V 240×320 IPS</text>
+  </g>
+
+  <!--
+    =================================================================
+    Tactile push button.
+    Body: x = 180..280 (100 wide), y = 470..540 (70 tall)
+    Two leads, left at (190, 540) and right at (270, 540).
+    =================================================================
+  -->
+  <g>
+    <rect class="btn-base" x="180" y="470" width="100" height="70" rx="6"/>
+    <circle class="btn-cap" cx="230" cy="500" r="18"/>
+    <!-- leads on the bottom edge -->
+    <rect class="btn-lead" x="186" y="538" width="8" height="10"/>
+    <rect class="btn-lead" x="266" y="538" width="8" height="10"/>
+    <text class="btn-label" x="230" y="568" text-anchor="middle">tactile push button</text>
+  </g>
+
+  <!--
+    =================================================================
+    Wires — absolute coordinates only.
+    ESP-LEFT pads → display loop UNDER the ESP board.
+    ESP-RIGHT pads → display gentle curves directly.
+    Button → GP2 + ground.
+    =================================================================
+  -->
+
+  <!-- 3V3 (115, 196) → VCC (540, 168)  · red -->
+  <path class="wire w-pwr"
+        d="M 110 196 C 40 196, 70 410, 200 430 S 470 430, 540 168"/>
+  <!-- GND  (115, 168) → GND (540, 198)  · gray -->
+  <path class="wire w-gnd"
+        d="M 110 168 C 30 168, 60 420, 220 440 S 480 440, 540 198"/>
+  <!-- GP4  (115, 224) → SCL (540, 228)  · yellow -->
+  <path class="wire w-clk"
+        d="M 110 224 C 50 224, 80 400, 250 420 S 460 420, 540 228"/>
+  <!-- GP3  (115, 252) → BLK (540, 378)  · cyan -->
+  <path class="wire w-bl"
+        d="M 110 252 C 60 252, 90 410, 270 430 S 480 430, 540 378"/>
+
+  <!-- ESP-RIGHT pads → display (smooth right-side curves) -->
+  <!-- GP6 (270, 168) → SDA (540, 258) · blue -->
+  <path class="wire w-data"
+        d="M 270 168 C 370 168, 430 258, 540 258"/>
+  <!-- GP7 (270, 196) → CS (540, 348) · green -->
+  <path class="wire w-cs"
+        d="M 270 196 C 380 196, 430 348, 540 348"/>
+  <!-- GP5 (270, 140) → DC (540, 318) · purple -->
+  <path class="wire w-dc"
+        d="M 270 140 C 360 140, 430 318, 540 318"/>
+  <!-- GP10 (270, 280) → RES (540, 288) · golden -->
+  <path class="wire w-rst"
+        d="M 270 280 C 370 280, 440 288, 540 288"/>
+
+  <!-- GP2 (115, 280) → button left lead (190, 548) · dashed red -->
+  <path class="wire w-btn"
+        d="M 110 280 C 70 280, 70 530, 190 548"/>
+  <!-- Button right lead (270, 548) → back up to ESP GND pad (115, 168) · dashed gray -->
+  <path class="wire w-gnd"
+        d="M 270 548 C 340 548, 340 380, 290 380 S 60 168, 110 168"
+        stroke-dasharray="5 3"/>
+
+  <!--
+    =================================================================
+    Legend + note
+    =================================================================
+  -->
+  <g transform="translate(36, 610)">
+    <text class="legend-text" x="0" y="0" font-weight="700">Color key</text>
+    <g transform="translate(80, -4)">
+      <line class="wire w-pwr"  x1="0"   y1="0" x2="22" y2="0"/><text class="legend-text" x="28"  y="4">power</text>
+      <line class="wire w-gnd"  x1="78"  y1="0" x2="100" y2="0"/><text class="legend-text" x="106" y="4">ground</text>
+      <line class="wire w-clk"  x1="160" y1="0" x2="182" y2="0"/><text class="legend-text" x="188" y="4">SPI clock</text>
+      <line class="wire w-data" x1="260" y1="0" x2="282" y2="0"/><text class="legend-text" x="288" y="4">SPI data</text>
+      <line class="wire w-cs"   x1="350" y1="0" x2="372" y2="0"/><text class="legend-text" x="378" y="4">CS</text>
+      <line class="wire w-dc"   x1="408" y1="0" x2="430" y2="0"/><text class="legend-text" x="436" y="4">DC</text>
+      <line class="wire w-rst"  x1="466" y1="0" x2="488" y2="0"/><text class="legend-text" x="494" y="4">reset</text>
+      <line class="wire w-bl"   x1="538" y1="0" x2="560" y2="0"/><text class="legend-text" x="566" y="4">backlight</text>
+      <line class="wire w-btn"  x1="630" y1="0" x2="652" y2="0"/><text class="legend-text" x="658" y="4">button</text>
+    </g>
+  </g>
+
+  <text class="note" x="36" y="650">Tip: short jumper wires for the right-side nets, longer ones for the left-side nets that loop under the board. Either GND pin on the ESP works for the button return.</text>
+  <text class="note" x="36" y="668">See docs/wiring.svg for the schematic (clean one-row-per-net view) and firmware/include/lgfx_panel.h for the pin assignments in code.</text>
+</svg>

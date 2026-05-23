@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#131820"/>
+      <stop offset="1" stop-color="#0A0E14"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F2933"/>
+      <stop offset="1" stop-color="#131820"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <!-- monitor / device silhouette -->
+  <rect x="280" y="220" width="464" height="600" rx="44" fill="#3A4654"/>
+  <rect x="316" y="256" width="392" height="528" rx="20" fill="url(#screen)"/>
+  <!-- bars -->
+  <rect x="356" y="306" width="312" height="14" rx="4" fill="#4D7FE8"/>
+  <rect x="356" y="350" width="220" height="14" rx="4" fill="#3FB950"/>
+  <rect x="356" y="394" width="270" height="14" rx="4" fill="#D29922"/>
+  <!-- big "$" glyph -->
+  <text x="512" y="660" text-anchor="middle" font-family="-apple-system, 'SF Pro Text', sans-serif" font-size="220" font-weight="700" fill="#E6EDF3">$</text>
+  <!-- footer dots -->
+  <circle cx="430" cy="744" r="10" fill="#3FB950"/>
+  <circle cx="466" cy="744" r="10" fill="#4D7FE8"/>
+  <circle cx="502" cy="744" r="10" fill="#D29922"/>
+  <circle cx="538" cy="744" r="10" fill="#F85149"/>
+  <circle cx="574" cy="744" r="10" fill="#7BEBEF"/>
+  <!-- USB stem -->
+  <rect x="488" y="820" width="48" height="40" rx="6" fill="#56B6C2"/>
+</svg>

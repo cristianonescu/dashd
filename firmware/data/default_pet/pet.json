@@ -1,0 +1,14 @@
+{
+  "id": "claw-d",
+  "displayName": "Claw'd",
+  "creator": "krrsantan",
+  "source": "https://codexpets.net/gallery/claw-d",
+  "description": "A tiny coral-orange blocky crab companion with square black eyes and a simple pixel-art silhouette.",
+  "spritesheetPath": "spritesheet.webp",
+  "grid": { "rows": 9, "cols": 8 },
+  "states": [
+    "idle", "run_right", "run_left", "wave", "jump",
+    "failed", "waiting", "running", "review"
+  ],
+  "notice": "Bundled with dashd under fair-use attribution. The original asset is hosted by codexpets.net; this copy is the same data, downsampled and re-encoded for the ESP32-C3 display."
+}

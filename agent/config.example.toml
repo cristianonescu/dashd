@@ -1,0 +1,108 @@
+[serial]
+# auto-detect by VID:PID (303A:1001) if omitted
+# port = "/dev/cu.usbmodem133201"
+baud = 460800
+
+[transport]
+# Device transport: "cable" (USB-CDC), "bluetooth" (BLE), or "auto"
+# (USB when a dashd device is plugged in, else BLE). The Electron app
+# overrides this via the DASHD_TRANSPORT env var.
+mode = "auto"
+
+[update]
+interval_seconds = 2.0
+# Slow tick used when nothing is consuming state (no device, no active UI).
+idle_interval_seconds = 30.0
+
+[user]
+email = "crisonescu@gmail.com"
+timezone = "Europe/Bucharest"
+
+[collectors.system]
+enabled = true
+
+[collectors.claude_code]
+enabled = true
+# Per-block token budget. When set, the agent exposes `block_used_pct`
+# (tokens consumed this 5h window / budget) AND a "projected to hit cap
+# at HH:MM" countdown driven by the recent burn rate. Leave unset to keep
+# the agent reporting only the time-elapsed metric `block_elapsed_pct`.
+# Env-var equivalent: DASHD_CLAUDE_BLOCK_BUDGET=1500000
+# block_token_budget = 1500000
+
+# Override per-model pricing from the LiteLLM-backed default catalog.
+# The agent ships a vendored snapshot and tries to refresh it daily from
+# https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
+# Use this table only for one-off corrections / new models not yet in
+# upstream. Keys can be exact model ids or family prefixes (longest match
+# wins). Rates are per-token (not per-million).
+# [collectors.claude_code.rates]
+# "claude-opus-4-7" = {
+#   input_cost_per_token = 5.0e-6,
+#   output_cost_per_token = 25.0e-6,
+#   cache_read_input_token_cost = 5.0e-7,
+#   cache_creation_input_token_cost = 6.25e-6,
+# }
+
+[collectors.codex]
+enabled = true
+path = "~/.codex"
+
+# Anthropic OAuth Usage API (v0.1.6+). When enabled, dashd reads your
+# local Claude Code OAuth token (macOS Keychain or `.credentials.json`),
+# calls Anthropic's /api/oauth/usage endpoint every 60s, and surfaces
+# the response as the `anthropic` top-level wire block. This is what
+# makes Session % / Weekly % / Sonnet % / Extra-usage gauges match
+# Claude.ai exactly (because they ARE Claude.ai's numbers).
+#
+# Strictly opt-in. Token is held in memory only, never logged, never
+# persisted. Recommended setup: leave this off and toggle from the
+# Electron app at Settings → Privacy.
+[collectors.anthropic_oauth]
+enabled = false
+
+[collectors.git]
+enabled = true
+# Configure which repos to watch. commits/LOC are filtered by user.email above;
+# `minutes_since_last_commit` counts any author on the current branch.
+repos = [
+  "~/_sandboxes/dashd",
+  # "~/_sandboxes/SmartboardAdventure",
+]
+
+[collectors.github]
+enabled = true
+# Set GITHUB_TOKEN env var (PAT with `repo` + `notifications`).
+# Or inline (less safe): token = "ghp_..."
+
+[collectors.calendar]
+enabled = true
+provider = "microsoft"
+# See docs/microsoft-graph-setup.md to register an app + get these.
+client_id = ""
+tenant_id = "common"
+
+[collectors.email]
+enabled = true
+host = "imap.gmail.com"
+port = 993
+username = "crisonescu@gmail.com"
+# Set DASHD_EMAIL_PASSWORD env var (app password for Gmail).
+mailbox = "INBOX"
+
+# --- Slack / Teams / WhatsApp are stubs; iMessage is on macOS only. ---
+
+[collectors.slack]
+enabled = false
+
+[collectors.teams]
+enabled = false
+
+[collectors.imessage]
+# macOS only. Requires Full Disk Access for the terminal/IDE running the
+# agent. See docs/collectors.md.
+enabled = true
+
+[collectors.whatsapp]
+# Best-effort; currently always returns null. See docs/whatsapp.md.
+enabled = true

@@ -1,0 +1,25 @@
+# Partition table for dashd with OTA support. 4 MB flash, dual-app layout.
+#
+#   - nvs:      device prefs (theme, thresholds, page order, trust tokens)
+#   - otadata:  ESP-IDF rotates the active app slot through this
+#   - app0:     first OTA slot — bootloader picks one based on otadata
+#   - app1:     second OTA slot — receives the new image during OTA
+#   - littlefs: pet bundles (a few hundred KB each, RGB565 frames)
+#   - coredump: panic backtrace dumps for post-mortem debugging
+#
+# Sizes:
+#   app slots are 1.5 MB each. Current firmware is ~1 MB, so 0.5 MB of
+#   growth headroom per slot before this needs revisiting.
+#   littlefs is 0.8 MB, fits 2–3 typical pets simultaneously.
+#
+# Upgrade note: existing v0.1.1 devices have a single-app layout — moving
+# to this table requires a one-time USB flash. After that, OTA can update
+# either slot via the wire protocol's fw_update_* commands.
+#
+# Name,    Type, SubType,  Offset,   Size,
+nvs,       data, nvs,      0x9000,   0x5000,
+otadata,   data, ota,      0xe000,   0x2000,
+app0,      app,  ota_0,    0x10000,  0x180000,
+app1,      app,  ota_1,    0x190000, 0x180000,
+littlefs,  data, spiffs,   0x310000, 0xd0000,
+coredump,  data, coredump, 0x3e0000, 0x20000,

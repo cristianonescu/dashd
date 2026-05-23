@@ -1,0 +1,391 @@
+import { useAtom, $state } from "../store";
+
+function Bar({ pct, warnAt = 70, critAt = 90 }: { pct?: number; warnAt?: number; critAt?: number }) {
+  const v = Math.max(0, Math.min(100, pct ?? 0));
+  const cls = pct == null ? "" : v >= critAt ? "crit" : v >= warnAt ? "warn" : "good";
+  return <div className="bar"><div className={`fill ${cls}`} style={{ width: `${v}%` }} /></div>;
+}
+
+function fmtTokens(n?: number | null): string {
+  if (n == null) return "—";
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return (n / 1000).toFixed(1) + "k";
+  return (n / 1_000_000).toFixed(2) + "M";
+}
+
+/** Format an integer minute count as "Nm" or "Hh MMm" — used for the
+ * 5h-block reset countdown and the burn-rate projection. */
+function fmtMin(n?: number | null): string {
+  if (n == null) return "—";
+  if (n < 60) return `${n}m`;
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
+
+function avg(arr?: number[]): number | undefined {
+  if (!arr || arr.length === 0) return undefined;
+  return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+}
+
+export default function LiveView() {
+  const s = useAtom($state);
+  if (!s) return <div className="empty">Waiting for first state frame from agent…</div>;
+
+  const sys: any = s.system ?? {};
+  const cc = s.ai?.claude_code ?? {};
+  const cx = s.ai?.codex ?? {};
+  const git = s.git ?? {};
+  const gh = s.github ?? {};
+  const cal = s.calendar ?? {};
+  const msgs = s.messages ?? {};
+  const suggestions: Array<{ severity: "crit" | "warn" | "info"; text: string }> =
+    (s as any).suggestions ?? [];
+
+  const cpuAvg = avg(sys.cpu_pct);
+  const ramPress = sys.ram_pressure_pct ?? sys.ram_pct;
+
+  return (
+    <div className="pane">
+      {suggestions.length > 0 && (
+        <div className="card">
+          <h3 data-hint="Ranked, real-time advice from the agent's rule engine — the same list shown on the device's Tips page. Red = act now, amber = watch, blue = informational.">Suggestions</h3>
+          <div className="sugg-list">
+            {suggestions.map((s, i) => (
+              <div key={i} className={`sugg ${s.severity}`}>
+                <span className="badge">{s.severity === "crit" ? "!" : s.severity === "warn" ? "▲" : "i"}</span>
+                <span>{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="row">
+        <div className="col">
+          <div className="card">
+            <h3 data-hint="Live machine vitals sampled by the agent every ~2 s: CPU load, memory pressure, disk, network and battery.">System</h3>
+
+            <div className="kv" data-hint="Average load across all CPU cores. The bar turns amber past 70% and red past 90%.">
+              <span className="k">CPU</span>
+              <span className="v"><span className="big-num" style={{ fontSize: 22 }}>{cpuAvg != null ? `${cpuAvg}%` : "—"}</span></span>
+            </div>
+            <Bar pct={cpuAvg} />
+
+            <div className="kv" data-hint="'Real' memory pressure — active + wired memory only, excluding reclaimable cache. A better 'will this swap?' signal than raw RAM used.">
+              <span className="k">RAM pressure</span>
+              <span className="v">
+                {ramPress != null ? `${ramPress}%` : "—"}
+                {sys.ram_used_gb != null && (
+                  <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                    {sys.ram_used_gb} / {sys.ram_total_gb} GB
+                  </span>
+                )}
+              </span>
+            </div>
+            <Bar pct={ramPress} warnAt={70} critAt={90} />
+
+            <div className="kv" data-hint="Used space on the primary disk volume.">
+              <span className="k">Disk</span>
+              <span className="v">{sys.disk_pct != null ? `${sys.disk_pct}%` : "—"}</span>
+            </div>
+            <Bar pct={sys.disk_pct} warnAt={85} critAt={95} />
+
+            <div className="kv" data-hint="Current network throughput — ↓ download, ↑ upload, in kilobits per second.">
+              <span className="k">Network</span>
+              <span className="v">
+                {sys.net_down_kbps != null ? `↓ ${sys.net_down_kbps} · ↑ ${sys.net_up_kbps} kbps` : "—"}
+              </span>
+            </div>
+            <div className="kv" data-hint="Battery charge level. ⚡ means the machine is plugged in and charging.">
+              <span className="k">Battery</span>
+              <span className="v">
+                {sys.battery_pct != null ? `${sys.battery_pct}%${sys.battery_charging ? " ⚡" : ""}` : "n/a"}
+              </span>
+            </div>
+            {sys.temp_cpu_c != null && (
+              <div className="kv" data-hint="CPU package temperature, when the platform exposes a sensor.">
+                <span className="k">CPU temp</span>
+                <span className="v">{sys.temp_cpu_c.toFixed(0)}°C</span>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <h3 data-hint="AI coding-tool usage. Claude Code figures come from ~/.claude/projects; Codex from ~/.codex/sessions.">AI Spend</h3>
+            <div className="stat-hero" data-hint="Estimated US-dollar cost of today's Claude Code token usage.">
+              <span className="num">${cc.cost_today_usd?.toFixed(2) ?? "—"}</span>
+              <span className="unit">today · Claude Code</span>
+            </div>
+
+            <div className="kv" data-hint="Total Claude Code tokens used today across all models.">
+              <span className="k">Tokens today</span>
+              <span className="v">{fmtTokens(cc.tokens_today)}</span>
+            </div>
+
+            {/* Tokens / cost this 5h block — the same denominator the
+                firmware's AI Spend page surfaces. tokens_block is more
+                actionable than tokens_today when you're hunting for what
+                spent your budget. */}
+            {(cc.tokens_block != null || cc.cost_block_usd != null) && (
+              <div className="kv" data-hint="Claude Code tokens consumed since the current 5h rate-limit window opened.">
+                <span className="k">This block</span>
+                <span className="v">
+                  {fmtTokens(cc.tokens_block)}
+                  {cc.cost_block_usd != null && (
+                    <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                      ${cc.cost_block_usd.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {/* Time-elapsed % (always available when activity exists in
+                the window). Labelled "elapsed" so it isn't read as
+                "% of tokens used". */}
+            <div className="kv" data-hint="Time elapsed in the current 5h rate-limit window. Distinct from quota usage — see 'used' below if a per-block token budget is configured.">
+              <span className="k">5h block · elapsed</span>
+              <span className="v">
+                {(cc.block_elapsed_pct ?? cc.block_pct) != null
+                  ? `${cc.block_elapsed_pct ?? cc.block_pct}%`
+                  : "—"}
+                {cc.block_resets_in_min != null && (
+                  <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                    {fmtMin(cc.block_resets_in_min)} to reset
+                  </span>
+                )}
+              </span>
+            </div>
+            <Bar pct={(cc.block_elapsed_pct ?? cc.block_pct) ?? undefined}
+                 warnAt={75} critAt={90} />
+
+            {/* Quota-used % — only when a per-block budget is configured
+                (DASHD_CLAUDE_BLOCK_BUDGET or [collectors.claude_code]
+                block_token_budget). This is the gauge users actually
+                want — "how much of my quota have I burned". */}
+            {cc.block_used_pct != null && (
+              <>
+                <div className="kv" data-hint="Tokens consumed this block as a fraction of the configured per-block budget. Only shown when [collectors.claude_code] block_token_budget is set.">
+                  <span className="k">5h block · used</span>
+                  <span className="v">
+                    {cc.block_used_pct}%
+                    {cc.burn_projected_cap_min != null && (
+                      <span className={cc.burn_projected_cap_min < 30 ? "warn" : "dim"}
+                            style={{ marginLeft: 8, fontWeight: 500 }}>
+                        hits cap in {fmtMin(cc.burn_projected_cap_min)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <Bar pct={cc.block_used_pct} warnAt={75} critAt={90} />
+              </>
+            )}
+
+            {/* Burn rate row — useful even without a budget. */}
+            {cc.burn_tokens_per_min != null && cc.burn_tokens_per_min > 0 && (
+              <div className="kv" data-hint="Average tokens per minute over the elapsed portion of this 5h block.">
+                <span className="k">Burn rate</span>
+                <span className="v">{fmtTokens(cc.burn_tokens_per_min)} tok/min</span>
+              </div>
+            )}
+
+            {/* Last 7 days — context for whether "today" is a heavy day
+                or just normal. */}
+            {(cc.tokens_this_week != null && cc.tokens_this_week > 0) && (
+              <div className="kv" data-hint="Claude Code tokens + dollars across the last 7 days.">
+                <span className="k">Last 7 days</span>
+                <span className="v">
+                  {fmtTokens(cc.tokens_this_week)}
+                  {cc.cost_this_week_usd != null && (
+                    <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                      ${cc.cost_this_week_usd.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {/* Top projects — surfaces where today's tokens went. The
+                firmware can't show this since it has no place for a list. */}
+            {cc.top_projects && cc.top_projects.length > 0 && (
+              <div className="kv" data-hint="Top 3 codebases by Claude Code tokens consumed today. Project names are derived from the cwd that Claude Code recorded.">
+                <span className="k">Top projects</span>
+                <span className="v" style={{ textAlign: "right", flex: 1, minWidth: 0 }}>
+                  {cc.top_projects.map((p, i) => (
+                    <span key={p.name} style={{
+                      display: "block", overflow: "hidden",
+                      textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      fontWeight: i === 0 ? 500 : 400,
+                      opacity: 1 - (i * 0.18),
+                    }}>
+                      {p.name} <span className="dim">· {fmtTokens(p.tokens)}</span>
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            {/* Codex — tokens are real now (cumulative→delta diff). */}
+            <div className="kv" data-hint="Codex tokens consumed today. dashd derives these from cumulative session totals; cost stays — because Anthropic/OpenAI don't publish Codex pricing.">
+              <span className="k">Codex tokens today</span>
+              <span className="v">
+                {fmtTokens(cx.tokens_today)}
+                {cx.session_active && <span className="good" style={{ marginLeft: 8, fontWeight: 500 }}>· live</span>}
+              </span>
+            </div>
+            <div className="kv" data-hint="Codex's reported quota usage % for the current 5h window. Distinct from Claude's time-elapsed metric — this IS the actual usage %.">
+              <span className="k">Codex block · used</span>
+              <span className="v">
+                {(cx.block_used_pct ?? cx.block_pct) != null
+                  ? `${cx.block_used_pct ?? cx.block_pct}%`
+                  : "—"}
+                {cx.block_resets_in_min != null && (
+                  <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                    {fmtMin(cx.block_resets_in_min)} to reset
+                  </span>
+                )}
+              </span>
+            </div>
+            <Bar pct={(cx.block_used_pct ?? cx.block_pct) ?? undefined}
+                 warnAt={75} critAt={90} />
+          </div>
+        </div>
+
+        <div className="col">
+          <div className="card">
+            <h3 data-hint="Git activity across the repositories listed in config.toml.">Dev Flow</h3>
+            <div className="kv" data-hint="Current branch of the active repository."><span className="k">Branch</span><span className="v">{git.branch ?? "—"}</span></div>
+            <div className="kv" data-hint="Number of commits made today across the tracked repositories."><span className="k">Commits today</span><span className="v">{git.commits_today ?? "—"}</span></div>
+            <div className="kv" data-hint="Lines of code added (green) and removed (red) today.">
+              <span className="k">LOC</span>
+              <span className="v">
+                <span className="good">+{git.loc_added ?? 0}</span>
+                <span style={{ margin: "0 6px", color: "var(--dim)" }}>·</span>
+                <span className="crit">−{git.loc_removed ?? 0}</span>
+              </span>
+            </div>
+            <div className="kv" data-hint="Minutes since the last commit — a nudge to checkpoint your work.">
+              <span className="k">Last commit</span>
+              <span className="v">{git.minutes_since_last_commit != null ? `${git.minutes_since_last_commit}m ago` : "—"}</span>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 data-hint="GitHub activity for your account. Requires a GITHUB_TOKEN env var (see Settings → Collectors).">GitHub</h3>
+            <div className="kv" data-hint="Open pull requests that have requested your review."><span className="k">PRs awaiting review</span><span className="v">{gh.prs_awaiting_review ?? "—"}</span></div>
+            <div className="kv" data-hint="Failed CI runs across your repositories in the last 24 hours."><span className="k">CI failures (24h)</span><span className="v">{gh.ci_failures_24h ?? "—"}</span></div>
+            <div className="kv" data-hint="Unread GitHub notifications."><span className="k">Unread notifications</span><span className="v">{gh.unread_notifications ?? "—"}</span></div>
+          </div>
+
+          <div className="card">
+            <h3 data-hint="Your next calendar event (Microsoft Graph) and unread-message counts per channel.">Calendar & Messages</h3>
+            <div className="kv" data-hint="Title of, and minutes until, your next calendar event.">
+              <span className="k">Next event</span>
+              <span className="v">
+                {cal.next_event_title ?? "—"}
+                {cal.next_event_in_min != null && (
+                  <span className="dim" style={{ marginLeft: 8, fontWeight: 400 }}>
+                    in {cal.next_event_in_min}m
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="kv" data-hint="Number of calendar events still to come today."><span className="k">Today remaining</span><span className="v">{cal.today_remaining ?? "—"}</span></div>
+            {Object.entries(msgs).map(([k, v]) => (
+              <div className="kv" key={k}
+                   data-hint={`Unread ${k} messages. Collector for this channel is configured in config.toml.`}>
+                <span className="k" style={{ textTransform: "capitalize" }}>{k}</span>
+                <span className="v">{v && (v as any).unread != null ? (v as any).unread : "—"}</span>
+              </div>
+            ))}
+          </div>
+
+          <TopProcsCard system={sys} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TopProcsCard({ system }: { system: any }) {
+  const topRam: Array<any> = system?.top_ram ?? [];
+  const topCpu: Array<any> = system?.top_cpu ?? [];
+  const leak = system?.memory_leak;
+
+  const sendAction = (target: string, action: string) => {
+    if (action === "quit") {
+      if (!confirm(`Send Quit (SIGTERM) to all "${target}" processes?`)) return;
+    }
+    window.dashd.sendCmd({ name: "proc_action", target, action } as any);
+  };
+
+  if (topRam.length === 0 && topCpu.length === 0) return null;
+
+  return (
+    <div className="card">
+      <h3 data-hint="The heaviest apps right now, aggregated per application (all helper processes summed). Use the row buttons to act on one.">Top Processes</h3>
+      {leak && (
+        <div className="sugg warn" style={{ marginBottom: 10 }}
+             data-hint="The agent tracks per-app memory over a 5-minute window. A steady climb past the threshold is flagged here as a possible leak.">
+          <span className="badge">▲</span>
+          <span>
+            <strong>{leak.name}</strong>
+            <span className="dim"> grew </span>
+            +{leak.delta_mb} MB
+            <span className="dim"> in </span>
+            {leak.window_min}m — possible leak
+          </span>
+        </div>
+      )}
+      <h4 data-hint="Apps using the most memory, summed across all their processes.">By RAM</h4>
+      {topRam.map((r, i) => <ProcRow key={`r${i}`} row={r} unit="ram" onAction={sendAction}/>)}
+      <h4 style={{ marginTop: 14 }} data-hint="Apps using the most CPU, summed across all their processes.">By CPU</h4>
+      {topCpu.map((r, i) => <ProcRow key={`c${i}`} row={r} unit="cpu" onAction={sendAction}/>)}
+    </div>
+  );
+}
+
+function ProcRow({ row, unit, onAction }: {
+  row: any; unit: "ram" | "cpu";
+  onAction: (target: string, action: string) => void;
+}) {
+  const name: string = row?.name ?? "?";
+  const procs: number = row?.procs ?? 1;
+  let value: string;
+  if (unit === "ram") {
+    const mb = row?.ram_mb ?? 0;
+    value = mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+  } else {
+    value = `${(row?.cpu_pct ?? 0).toFixed(0)}%`;
+  }
+  return (
+    <div className="proc-row">
+      <span
+        className="name"
+        data-hint={procs > 1
+          ? `"${name}" — ${procs} processes (helpers, renderers, etc.) summed into one app row.`
+          : `"${name}" — a single process.`}
+      >
+        {name}
+        {procs > 1 && <span className="count">×{procs}</span>}
+      </span>
+      <span className="value">{value}</span>
+      <span className="actions">
+        <button
+          data-hint={`Reveal the executable for "${name}" in Finder.`}
+          onClick={() => onAction(name, "reveal")}
+        >⤴</button>
+        <button
+          data-hint={`Open macOS Activity Monitor focused on "${name}".`}
+          onClick={() => onAction(name, "activity_monitor")}
+        >◫</button>
+        <button
+          data-hint={`Quit "${name}" — sends SIGTERM to every process under this app. You'll be asked to confirm.`}
+          className="danger"
+          onClick={() => onAction(name, "quit")}
+        >×</button>
+      </span>
+    </div>
+  );
+}

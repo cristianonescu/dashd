@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dashd"
+version = "0.1.10"
+description = "USB-tethered desk widget agent for developers."
+requires-python = ">=3.11"
+authors = [{ name = "dashd" }]
+dependencies = [
+  "pyserial>=3.5",      # USB-CDC link to the ESP32-C3
+  "psutil>=5.9",        # cross-platform system stats
+  "pydantic>=2.6",      # config + protocol schemas
+  "rich>=13.7",         # readable logging
+  "Pillow>=10.0",       # sprite-sheet decode for the pet converter
+  "numpy>=1.26",        # alpha-bbox + per-pixel ops in the pet converter
+  "httpx>=0.27",        # used by the catalog + pet downloader (also re-exported in net extras)
+  "bleak>=0.22",        # Bluetooth LE transport (cross-platform: CoreBluetooth/BlueZ/WinRT)
+  "keyring>=25.0",      # macOS Keychain / Linux SecretService / Windows Credential Manager
+                        # backends for the Anthropic OAuth token. Without this in the
+                        # packaged binary, opt-in OAuth gauges silently fall through to
+                        # file-based credential lookups and may never find the token —
+                        # see anthropic_oauth.py:_load_credentials_keychain_macos.
+]
+
+[project.optional-dependencies]
+# Network-facing collectors (GitHub, calendar, email). Kept out of the
+# base install so a "just the desktop telemetry" install stays lean.
+net = [
+  "httpx>=0.27",        # async HTTP for GitHub/Slack
+  "aioimaplib>=1.0",    # async IMAP for email
+  "msal>=1.28",         # Microsoft Graph device-code OAuth
+]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+dashd = "dashd.main:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dashd*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

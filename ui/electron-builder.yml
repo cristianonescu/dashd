@@ -1,0 +1,94 @@
+appId: ro.softwarechef.dashd
+productName: dashd
+copyright: Copyright © ${author}
+
+# Files included in the asar archive (the bundled Electron app).
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+  - "!**/*.map"
+
+# Bundle the PyInstaller agent binary next to the app.
+# extraResources puts items at resources/<dest> inside the packaged build.
+extraResources:
+  - from: "../agent/dist/dashd-agent"
+    to: "agent/dashd-agent"
+  # Tray icons (template style on macOS). The tray module looks for these
+  # under process.resourcesPath/build at runtime.
+  - from: "build/trayTemplate.png"
+    to: "build/trayTemplate.png"
+  - from: "build/trayTemplate@2x.png"
+    to: "build/trayTemplate@2x.png"
+  - from: "build/trayTemplate@3x.png"
+    to: "build/trayTemplate@3x.png"
+
+directories:
+  output: release
+
+# Auto-update slot — electron-updater reads the matching latest-*.yml
+# from GitHub Releases. The build workflow attaches those metadata files
+# automatically (electron-builder --publish onTagOrDraft).
+publish:
+  - provider: github
+    owner: cristianonescu
+    repo: dashd
+    releaseType: release
+
+# After electron-builder finishes laying out the .app bundle, run our
+# ad-hoc codesign pass so macOS' Squirrel.Mac (used by electron-updater)
+# accepts the binary. See build/afterPack.js.
+afterPack: build/afterPack.js
+
+# Unsigned v1 — README documents the Gatekeeper / SmartScreen click-through.
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    # DMG is the user-facing manual install artifact.
+    - target: dmg
+      arch: [arm64, x64]
+    # ZIP is what electron-updater's Squirrel.Mac actually downloads
+    # during auto-update. Without it the updater errors with
+    # "ZIP file not provided" and falls back to opening the release
+    # page. We discovered this in v0.1.3 — the bug never tripped before
+    # because nobody had successfully tested mac auto-update end-to-end.
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: false
+  # `identity: null` means electron-builder skips its own signing pass.
+  # We then ad-hoc sign in the afterPack hook (build/afterPack.js) so the
+  # resulting app has a valid (if locally-rooted) signature. This is
+  # required for electron-updater's Squirrel.Mac path to even attempt an
+  # update — without ANY signature, it bails before checking the feed.
+  identity: null
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  # macOS Bluetooth permission. Required for the BLE transport — without
+  # this key, CoreBluetooth access (the bundled agent's BLE link) is
+  # denied. The OS shows this string in the one-time permission prompt.
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: >-
+      dashd uses Bluetooth to connect to your dashd desk device when you
+      choose the Bluetooth transport.
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  icon: build/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Utility
+  artifactName: "${productName}-${version}-${arch}.${ext}"

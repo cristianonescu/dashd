@@ -1,0 +1,779 @@
+:root {
+  /* Apple-inspired dark palette (matches macOS Big Sur+ system colors) */
+  --bg:        #0B0B0F;
+  --bg-1:      #131318;
+  --surface:   #1C1C1E;
+  --surface-2: #2C2C2E;
+  --hairline:  rgba(255, 255, 255, 0.08);
+  --hairline-2:rgba(255, 255, 255, 0.14);
+  --fg:        #F5F5F7;
+  --fg-2:      #D1D1D6;
+  --dim:       #8E8E93;
+  --dim-2:     #636366;
+
+  /* System semantic colors */
+  --accent:    #0A84FF;
+  --accent-2:  #5AC8FA;
+  --good:      #30D158;
+  --warn:      #FF9F0A;
+  --crit:      #FF453A;
+  --pink:      #FF375F;
+  --purple:    #BF5AF2;
+
+  /* Type scale */
+  --t-caption: 11px;
+  --t-footnote:12px;
+  --t-body:    13px;
+  --t-callout: 14px;
+  --t-headline:15px;
+  --t-title-3: 17px;
+  --t-title-2: 20px;
+  --t-title-1: 24px;
+  --t-display: 32px;
+
+  --radius-sm: 8px;
+  --radius:    12px;
+  --radius-lg: 16px;
+
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: var(--t-body);
+  letter-spacing: -0.005em;
+}
+
+/* Subtle ambient gradient — same trick Apple uses on Settings panels */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 600px at 12% -10%,  rgba(10,132,255,0.10), transparent 60%),
+    radial-gradient(800px 500px at 110% 0%,   rgba(191,90,242,0.08), transparent 65%),
+    radial-gradient(700px 400px at 50% 110%,  rgba(48,209,88,0.05),  transparent 70%);
+  z-index: 0;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+/* When the logs dock is open, the bottom row appears; main pane shrinks
+   to fit. The active tab content (which has its own overflow:auto) just
+   keeps scrolling inside the smaller cell. */
+.app.logs-open {
+  grid-template-rows: auto 1fr 38vh;
+}
+
+/* ---------- Window chrome ---------- */
+.chrome {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: rgba(11, 11, 15, 0.72);
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* Status bar */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  /* Wrap pills onto a second line on narrow windows rather than push the
+     "Updated …" pill off the right edge. */
+  flex-wrap: wrap;
+  padding: 10px 18px 8px;
+  font-size: var(--t-footnote);
+  color: var(--fg-2);
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: var(--t-footnote);
+  color: var(--fg-2);
+}
+.status-pill.dim { background: transparent; border-color: transparent; padding-left: 4px; }
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  box-shadow: 0 0 0 0 currentColor;
+}
+.dot.good { background: var(--good); box-shadow: 0 0 8px rgba(48,209,88,0.55); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 8px rgba(255,159,10,0.55); }
+.dot.crit { background: var(--crit); box-shadow: 0 0 8px rgba(255,69,58,0.55); }
+.dot.dim  { background: var(--dim-2); }
+
+/* Segmented top-level tab control */
+.segmented {
+  display: inline-flex;
+  margin: 0 18px 12px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  gap: 2px;
+}
+.segmented .seg {
+  border: 0;
+  background: transparent;
+  color: var(--fg-2);
+  padding: 6px 14px;
+  font-size: var(--t-body);
+  font-weight: 500;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  text-transform: capitalize;
+  transition: background 150ms ease, color 150ms ease;
+}
+.segmented .seg:hover { color: var(--fg); }
+.segmented .seg.active {
+  background: var(--surface-2);
+  color: var(--fg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset,
+              0 1px 2px rgba(0,0,0,0.35);
+}
+
+/* ---------- Panes ---------- */
+.pane {
+  padding: 22px 24px 32px;
+  overflow: auto;
+}
+
+/* Cards — solid surface (no backdrop-filter). The blur barely added anything
+   over a near-black background and was forcing the GPU process to
+   recomposite every card on every 2s state update. With an opaque fill the
+   GPU helper drops from ~5% to ~0% at idle. The inner highlight + drop
+   shadow keep the same lifted look. */
+.card {
+  background: #18181A;
+  background-image: linear-gradient(180deg, #1C1C1E 0%, #161618 100%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 1px 2px rgba(0,0,0,0.35);
+  /* Contain layout + paint so re-renders don't re-paint the whole window. */
+  contain: layout paint style;
+}
+.card h3 {
+  margin: 0 0 12px;
+  font-size: var(--t-footnote);
+  color: var(--dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.card h4 {
+  margin: 8px 0 6px;
+  font-size: var(--t-footnote);
+  color: var(--dim);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.col { flex: 1 1 320px; min-width: 0; }
+
+/* Key/value rows */
+.kv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  font-size: var(--t-body);
+  border-bottom: 1px solid var(--hairline);
+}
+.kv:last-child { border-bottom: 0; }
+.kv .k { color: var(--dim); font-weight: 400; }
+.kv .v {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Progress bars */
+.bar {
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  margin: 4px 0 10px;
+}
+.bar > .fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  /* `width` transitions are not GPU-accelerated and force layout on every
+     animation frame for every visible bar. With state updates every 2 s
+     and ~5 bars on the LiveView pane, that adds up. Keeping only the
+     color transition (cheap, no layout) — width snaps to the new value. */
+  transition: background 280ms ease;
+  box-shadow: 0 0 6px rgba(10,132,255,0.35);
+}
+.bar > .fill.good { background: var(--good); box-shadow: 0 0 8px rgba(48,209,88,0.45); }
+.bar > .fill.warn { background: var(--warn); box-shadow: 0 0 8px rgba(255,159,10,0.45); }
+.bar > .fill.crit { background: var(--crit); box-shadow: 0 0 8px rgba(255,69,58,0.45); }
+
+.big-num {
+  font-size: var(--t-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.dim  { color: var(--dim); }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.crit { color: var(--crit); }
+
+/* ---------- Logs dock ---------- */
+.logs-dock {
+  /* Bottom panel — sits in the third grid row when `.app.logs-open`. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(11, 11, 15, 0.96);
+  border-top: 1px solid var(--hairline-2);
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.logs-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 10px 16px 12px;
+}
+.logs-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.logs-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--hairline-2);
+  border-radius: 7px;
+  color: var(--dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.logs-close:hover { background: var(--surface-2); color: var(--fg); }
+
+.logs {
+  flex: 1 1 0;
+  min-height: 0;
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: var(--t-caption);
+  line-height: 1.55;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: auto;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+}
+
+/* Floating toggle — bottom-right, always visible. */
+.logs-toggle {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--hairline-2);
+  font-size: var(--t-footnote);
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition: background 120ms ease, transform 120ms ease, color 120ms ease;
+}
+.logs-toggle:hover { background: #3a3a3c; }
+.logs-toggle:active { transform: scale(0.97); }
+.logs-toggle.active {
+  background: var(--accent);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.45);
+}
+.logs-toggle-chev {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.85;
+}
+.log-line { padding: 1px 0; }
+.log-line.info { color: var(--fg-2); }
+.log-line.warn, .log-line.warning { color: var(--warn); }
+.log-line.error { color: var(--crit); }
+.log-line.debug { color: var(--dim); }
+
+/*
+ * Release-notes body — keeps the HTML electron-updater hands us
+ * readable inside the popup container. The release body from GitHub
+ * is real HTML (lists, headings, links), so we render it via
+ * dangerouslySetInnerHTML and just style the inner elements.
+ */
+.release-notes-html { color: var(--fg-2); }
+.release-notes-html h1,
+.release-notes-html h2,
+.release-notes-html h3 { font-size: 13px; margin: 8px 0 4px; }
+.release-notes-html h1:first-child,
+.release-notes-html h2:first-child,
+.release-notes-html h3:first-child { margin-top: 0; }
+.release-notes-html p { margin: 4px 0; }
+.release-notes-html ul, .release-notes-html ol { padding-left: 18px; margin: 4px 0; }
+.release-notes-html li { margin: 2px 0; }
+.release-notes-html code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.release-notes-html pre {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+.release-notes-html a { color: var(--accent); }
+.release-notes-html table { border-collapse: collapse; margin: 4px 0; }
+.release-notes-html th, .release-notes-html td {
+  border: 1px solid var(--hairline);
+  padding: 2px 6px;
+}
+
+/*
+ * Usage cards — codexbar-style gauges shared by the popover and the
+ * Settings → Usage tab. Designed to be compact-mode-aware so the same
+ * component renders well in a 360-wide popover and a wider tab pane.
+ */
+.usage-card {
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 10px;
+}
+.usage-card.compact { padding: 9px 11px; margin-bottom: 8px; }
+.usage-card-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.usage-card-title { font-size: 13px; margin: 0; font-weight: 500; }
+.usage-card-subtitle { color: var(--dim); font-size: 11px; }
+.usage-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.usage-bar-fill { height: 100%; transition: width 200ms ease; background: var(--accent); }
+.usage-bar[data-variant="low"]  .usage-bar-fill { background: var(--accent); }
+.usage-bar[data-variant="ok"]   .usage-bar-fill { background: var(--good, #34c759); }
+.usage-bar[data-variant="warn"] .usage-bar-fill { background: var(--warn); }
+.usage-bar[data-variant="crit"] .usage-bar-fill { background: var(--crit); }
+.usage-card-meta { display: flex; justify-content: space-between; font-size: 12px; }
+.usage-card-pace { font-size: 11px; margin-top: 4px; }
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.usage-view { padding: 16px; overflow-y: auto; }
+.usage-enable-card { background: rgba(10, 132, 255, 0.08); }
+
+/*
+ * Tray popover window. Frameless, 360px wide. Header → cards →
+ * cost summary → footer links.
+ */
+.popover {
+  display: flex; flex-direction: column;
+  padding: 12px 14px;
+  background: var(--bg-1);
+  height: 100vh;
+  overflow-y: auto;
+  font-family: inherit;
+  color: var(--fg-1);
+}
+.popover-head { margin-bottom: 10px; }
+.popover-title { display: flex; align-items: baseline; gap: 8px; }
+.popover-sub { font-size: 11px; }
+.popover-warn {
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: rgba(255, 159, 10, 0.1);
+  border: 1px solid rgba(255, 159, 10, 0.3);
+  border-radius: 5px;
+}
+.popover-cost {
+  border-top: 1px solid var(--hairline);
+  margin-top: 6px; padding-top: 8px;
+  font-size: 12px;
+}
+.popover-cost-row {
+  display: flex; justify-content: space-between;
+  padding: 3px 0;
+}
+.popover-foot {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  display: flex; gap: 12px;
+}
+.popover-link {
+  background: none; border: none; color: var(--accent);
+  font-size: 12px; cursor: pointer; padding: 0;
+}
+.popover-link:hover { text-decoration: underline; }
+
+/*
+ * Update banner — floats in the top-right corner over any tab. Sits
+ * above the chrome's z-stack but below the hint layer so tooltips on
+ * its buttons still render. Same frosted-glass look as the rest.
+ */
+.update-banner {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(28, 28, 30, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  max-width: calc(100% - 32px);
+  flex-wrap: wrap;
+}
+.update-banner-text { color: var(--fg-1); }
+.update-banner .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.update-banner progress {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* ---------- Buttons + inputs ---------- */
+button.btn {
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: var(--t-body);
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+button.btn:hover { background: #3a3a3c; }
+button.btn:active { transform: scale(0.97); }
+button.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 1px 2px rgba(10,132,255,0.4), 0 0 0 1px rgba(10,132,255,0.35) inset;
+}
+button.btn.primary:hover { background: #1391ff; }
+button.btn.ghost {
+  background: transparent;
+  border-color: var(--hairline-2);
+  color: var(--fg-2);
+}
+button.btn.icon {
+  padding: 4px 8px;
+  font-size: var(--t-footnote);
+}
+
+input[type="text"], input[type="number"], input[type="password"], select, textarea {
+  background: rgba(0,0,0,0.35);
+  color: var(--fg);
+  border: 1px solid var(--hairline-2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: var(--t-body);
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+input[type="text"]:focus, input[type="number"]:focus,
+input[type="password"]:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.18);
+}
+
+/* iOS-style switch */
+label.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-body);
+  cursor: pointer;
+  color: var(--fg-2);
+}
+label.switch input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 22px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 200ms ease;
+  border: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+label.switch input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  top: 1px; left: 1px;
+  transition: left 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+label.switch input[type="checkbox"]:checked {
+  background: var(--good);
+  border-color: transparent;
+}
+label.switch input[type="checkbox"]:checked::after { left: 15px; }
+
+/* Suggestion chips (Apple-style colored capsules) */
+.sugg-list { display: flex; flex-direction: column; gap: 8px; }
+.sugg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: rgba(255,255,255,0.03);
+  font-size: var(--t-body);
+}
+.sugg .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+}
+.sugg.crit .badge { background: var(--crit); }
+.sugg.warn .badge { background: var(--warn); color: #1a1a1a; }
+.sugg.info .badge { background: var(--accent); }
+.sugg.crit { border-color: rgba(255,69,58,0.35); background: rgba(255,69,58,0.08); }
+.sugg.warn { border-color: rgba(255,159,10,0.30); background: rgba(255,159,10,0.06); }
+
+/* Top-process row */
+.proc-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--t-body);
+}
+.proc-row:last-child { border-bottom: 0; }
+.proc-row .name { color: var(--fg); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-row .count { color: var(--dim); margin-left: 6px; font-size: 11px; font-weight: 400; }
+.proc-row .value {
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 70px;
+}
+.proc-row .actions { display: flex; gap: 4px; }
+.proc-row .actions button {
+  /* min-width: 28px makes single-character icon buttons (LiveView's
+     ⤴ ◫ ×) render as a 28-px square, while text buttons (e.g. the
+     ConnectionPane "Pair" / "Forget") expand to fit their label
+     instead of clipping the text past the row's right edge. */
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--fg-2);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.proc-row .actions button:hover { background: #3a3a3c; color: var(--fg); }
+.proc-row .actions button.danger:hover { background: var(--crit); border-color: transparent; color: white; }
+
+/* Stat hero — for the LiveView headline metrics */
+.stat-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 8px;
+}
+.stat-hero .num {
+  font-size: var(--t-title-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.stat-hero .unit { color: var(--dim); font-size: var(--t-body); }
+
+/* Empty state */
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  color: var(--dim);
+  font-size: var(--t-callout);
+}
+
+/* Scrollbars (subtle, macOS-like) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.10);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.18); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Global hover tooltip (driven by HintLayer + data-hint attributes) */
+.hint-tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 280px;
+  padding: 8px 11px;
+  background: rgba(44, 44, 46, 0.98);
+  border: 1px solid var(--hairline-2);
+  border-radius: 9px;
+  font-size: var(--t-footnote);
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: hint-fade 110ms ease-out;
+}
+/* `above`: bubble sits with its bottom edge at the anchor's top.
+   `below`: bubble sits with its top edge at the anchor's bottom. */
+.hint-tip.above { transform: translate(-50%, -100%); }
+.hint-tip.below { transform: translate(-50%, 0); }
+/* Little pointer triangle. */
+.hint-tip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 8px; height: 8px;
+  margin-left: -4px;
+  background: rgba(44, 44, 46, 0.98);
+  border: 1px solid var(--hairline-2);
+  transform: rotate(45deg);
+}
+.hint-tip.above::after { bottom: -5px; border-top: 0; border-left: 0; }
+.hint-tip.below::after { top: -5px; border-bottom: 0; border-right: 0; }
+@keyframes hint-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* A subtle "?" affordance for info-only spots (non-clickable explainers). */
+.info-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px; height: 15px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-2);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+  vertical-align: middle;
+}
+.info-dot:hover { color: var(--fg); border-color: var(--accent); }
+
+/* Toast / flash messages */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28,28,30,0.95);
+  border: 1px solid var(--hairline-2);
+  color: var(--fg);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: var(--t-body);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  z-index: 100;
+}
