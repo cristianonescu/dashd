@@ -238,6 +238,66 @@ Over USB, the whole transfer takes a few seconds. Over BLE, expect 1–3 minutes
 
 If anything goes wrong, the card shows the error and the previous firmware keeps running — you can retry, or unplug + replug to start fresh.
 
+## Uninstall
+
+dashd doesn't ship a GUI uninstaller — the footprint is small enough that a documented procedure is cleaner. There are two cleanup steps: **host state** (your computer) and **device state** (the ESP32's NVS preferences). They're independent — you can wipe one without the other.
+
+### Device (optional, but do this BEFORE uninstalling host)
+
+Open **Settings → General → "Reset device prefs"**. This sends a `reset_prefs` command that clears every NVS override the device has accumulated: theme, thresholds, page order + enable mask, brightness, layout, scales, auto-advance settings, BLE trust list. The firmware itself stays — to flash blank firmware too, use PlatformIO: `cd firmware && pio run -t erase`.
+
+If you skip this step and reuse the same device later with a fresh dashd install, your old settings come back automatically — usually what you want.
+
+### Host
+
+Use the included script (recommended). It stops the agent, removes the autostart entry, deletes the config and cache dirs, and prints any remaining manual steps for your platform.
+
+**macOS / Linux:**
+
+```bash
+# from a clone of the repo, or download just the script:
+curl -fsSL https://raw.githubusercontent.com/cristianonescu/dashd/main/scripts/uninstall.sh | bash
+
+# or, with options:
+bash scripts/uninstall.sh --dry-run         # see what would be removed
+bash scripts/uninstall.sh --keep-config     # keep ~/.config/dashd (pets, BLE trust, etc.)
+```
+
+**Windows:**
+
+```powershell
+# in a PowerShell window (the NSIS unins000.exe handles the app bundle separately):
+powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
+powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1 -KeepConfig
+```
+
+### What the script removes
+
+The script touches only files dashd itself wrote. Your Claude Code OAuth tokens, GitHub PATs, IMAP passwords etc. live elsewhere on your system and are never deleted.
+
+| Path | Contents |
+|------|----------|
+| `~/.config/dashd/` (Unix) / `%APPDATA%\dashd\` (Win) | `config.toml`, `ipc.token`, `ble_trust.json`, `codex_state.json`, `msgraph_token.json`, `litellm-pricing.cache.json`, pet bundles cache |
+| `~/Library/Logs/dashd.{log,err.log}` (macOS) | Agent stdout/stderr |
+| `~/Library/Caches/dashd/` (macOS) / `~/.cache/dashd/` (Linux) / `%LOCALAPPDATA%\dashd\` (Win) | `electron-updater` download cache |
+| `~/Library/LaunchAgents/ro.softwarechef.dashd.agent.plist` (macOS) | Login-item autostart |
+| `~/.config/systemd/user/dashd.service` (Linux) | User-systemd autostart unit |
+| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\dashd` (Win) | Autostart registry entry |
+
+### What the script leaves for you
+
+The actual app bundle:
+
+| Platform | Step |
+|----------|------|
+| **macOS** | Drag **/Applications/dashd.app** to the Trash. |
+| **Windows** | Run the NSIS uninstaller — Settings → Apps → dashd → Uninstall (or `unins000.exe` in the install dir). |
+| **Linux (.deb)** | `sudo apt remove dashd` |
+| **Linux (AppImage)** | Delete the `.AppImage` file. |
+
+This separation keeps the script from killing a process that's also holding open `/Applications/dashd.app` files mid-uninstall (which would otherwise produce a "Resource busy" failure half-way through).
+
 ## Deploy
 
 ### To your own machine
